@@ -21,7 +21,7 @@ impl FactoryComponent for NoteListItem {
     type Input = NoteListMsg;
     type Output = NoteListOutput;
     type CommandOutput = ();
-    type ParentWidget = gtk::Box;
+    type ParentWidget = gtk::ListBox;
 
     view! {
         #[root]

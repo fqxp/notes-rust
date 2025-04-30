@@ -4,11 +4,11 @@ use std::io::Read;
 
 use crate::markdown::markdown_to_html;
 use gtk::glib;
-use gtk::prelude::*;
+use gtk::prelude::{GtkWindowExt, WidgetExt};
 use note_list::{NoteListItem, NoteListOutput};
-use relm4::prelude::*;
+use relm4::prelude::FactoryVecDeque;
 use relm4::{ComponentParts, ComponentSender, RelmApp, SimpleComponent};
-use webkit6::prelude::*;
+use webkit6::prelude::WebViewExt;
 pub mod markdown;
 pub mod note_list;
 
@@ -16,7 +16,6 @@ struct AppModel {
     note_list: FactoryVecDeque<NoteListItem>,
     current_filename: Option<String>,
     note_content: Option<String>,
-    error: Option<String>,
 }
 
 #[derive(Debug)]
@@ -40,12 +39,12 @@ impl SimpleComponent for AppModel {
                 set_position: 200,
                 set_wide_handle: true,
 
-
                 #[wrap(Some)]
-                #[local_ref]
-                set_start_child = note_list_box -> gtk::Box {
-                    set_orientation: gtk::Orientation::Vertical,
-                    set_spacing: 5,
+                set_start_child = &gtk::ScrolledWindow {
+                    set_vexpand: true,
+
+                    #[local_ref]
+                    note_list_box -> gtk::ListBox {},
                 },
 
                 #[wrap(Some)]
@@ -72,7 +71,7 @@ impl SimpleComponent for AppModel {
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let note_list = FactoryVecDeque::builder()
-            .launch(gtk::Box::default())
+            .launch(gtk::ListBox::default())
             .forward(sender.input_sender(), |output| match output {
                 NoteListOutput::SelectFile(filename) => AppMsg::SelectFile(filename),
             });
@@ -81,7 +80,6 @@ impl SimpleComponent for AppModel {
             note_list,
             current_filename,
             note_content: None,
-            error: None,
         };
 
         let filenames = vec![
@@ -108,7 +106,7 @@ impl SimpleComponent for AppModel {
                 let file = File::open(filename).unwrap();
                 let mut reader = BufReader::new(file);
                 let mut file_buffer = Vec::new();
-                reader.read_to_end(&mut file_buffer);
+                let _ = reader.read_to_end(&mut file_buffer);
                 self.note_content = Some(String::from_utf8(file_buffer).unwrap());
             }
         }
