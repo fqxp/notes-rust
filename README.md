@@ -1,2 +1,5 @@
 # notes-rust
-currently a rust learning project
+
+Currently a rust learning project
+
+To run it, use `cargo run`.
