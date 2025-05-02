@@ -6,6 +6,7 @@ use crate::markdown::markdown_to_html;
 use gtk::glib;
 use gtk::prelude::{GtkWindowExt, WidgetExt};
 use note_list::{NoteListItem, NoteListOutput};
+use relm4::RelmListBoxExt;
 use relm4::prelude::FactoryVecDeque;
 use relm4::{ComponentParts, ComponentSender, RelmApp, SimpleComponent};
 use webkit6::prelude::WebViewExt;
@@ -20,7 +21,7 @@ struct AppModel {
 
 #[derive(Debug)]
 enum AppMsg {
-    SelectFile(String),
+    SelectFile(usize),
 }
 
 #[relm4::component]
@@ -44,7 +45,12 @@ impl SimpleComponent for AppModel {
                     set_vexpand: true,
 
                     #[local_ref]
-                    note_list_box -> gtk::ListBox {},
+                    note_list_box -> gtk::ListBox {
+                        connect_row_activated[sender] => move |list_box, row| {
+                            let index = list_box.index_of_child(row).unwrap() as usize;
+                            sender.input_sender().emit(AppMsg::SelectFile(index));
+                        }
+                    },
                 },
 
                 #[wrap(Some)]
@@ -73,7 +79,7 @@ impl SimpleComponent for AppModel {
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
             .forward(sender.input_sender(), |output| match output {
-                NoteListOutput::SelectFile(filename) => AppMsg::SelectFile(filename),
+                NoteListOutput::SelectFile(index) => AppMsg::SelectFile(index),
             });
 
         let mut model = AppModel {
@@ -101,9 +107,11 @@ impl SimpleComponent for AppModel {
 
     fn update(&mut self, msg: Self::Input, _sender: ComponentSender<Self>) {
         match msg {
-            AppMsg::SelectFile(filename) => {
+            AppMsg::SelectFile(index) => {
+                let filename = self.note_list[index].filename.clone();
                 self.current_filename = Some(filename.clone());
-                let file = File::open(filename).unwrap();
+
+                let file = File::open(&filename).unwrap();
                 let mut reader = BufReader::new(file);
                 let mut file_buffer = Vec::new();
                 let _ = reader.read_to_end(&mut file_buffer);

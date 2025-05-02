@@ -2,7 +2,7 @@ use gtk::prelude::*;
 use relm4::prelude::*;
 
 pub struct NoteListItem {
-    filename: String,
+    pub filename: String,
 }
 
 #[derive(Debug)]
@@ -12,7 +12,7 @@ pub enum NoteListMsg {
 
 #[derive(Debug)]
 pub enum NoteListOutput {
-    SelectFile(String),
+    SelectFile(usize),
 }
 
 #[relm4::factory(pub)]
@@ -28,15 +28,16 @@ impl FactoryComponent for NoteListItem {
         gtk::Box {
             set_orientation: gtk::Orientation::Horizontal,
             set_spacing: 10,
+            set_margin_top: 10,
+            set_margin_bottom: 10,
 
             #[name(open_button)]
-            gtk::Button {
+            gtk::Label {
+                set_margin_top: 4,
+                set_margin_bottom: 4,
                 #[watch]
                 set_label: &self.filename,
-                connect_clicked[sender,filename=self.filename.clone()] => move |_| {
-                    let _ = sender.output(NoteListOutput::SelectFile(filename.clone()));
-                }
-            }
+            },
         }
     }
 
