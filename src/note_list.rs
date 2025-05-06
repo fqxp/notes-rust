@@ -1,8 +1,10 @@
 use gtk::prelude::*;
 use relm4::prelude::*;
 
+use crate::types::Note;
+
 pub struct NoteListItem {
-    pub filename: String,
+    pub note: Note,
 }
 
 #[derive(Debug)]
@@ -26,7 +28,7 @@ fn display_filename(filename: &String) -> &str {
 
 #[relm4::factory(pub)]
 impl FactoryComponent for NoteListItem {
-    type Init = String;
+    type Init = Note;
     type Input = NoteListMsg;
     type Output = NoteListOutput;
     type CommandOutput = ();
@@ -45,7 +47,7 @@ impl FactoryComponent for NoteListItem {
                 set_margin_top: 4,
                 set_margin_bottom: 4,
                 #[watch]
-                set_label: display_filename(&self.filename),
+                set_label: display_filename(&self.note.name),
             },
         }
     }
@@ -55,6 +57,6 @@ impl FactoryComponent for NoteListItem {
         _index: &Self::Index,
         _sender: relm4::FactorySender<Self>,
     ) -> Self {
-        Self { filename: init }
+        Self { note: init }
     }
 }
