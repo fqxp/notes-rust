@@ -1,17 +1,13 @@
-use crate::markdown::markdown_to_html;
 use gtk::glib;
 use gtk::prelude::*;
-use note_list::{NoteListItem, NoteListOutput};
+use notes::markdown::markdown_to_html;
+use notes::note_list::{NoteListItem, NoteListOutput};
+use notes::storage::FilesystemStorage;
 use relm4::RelmListBoxExt;
 use relm4::prelude::*;
 use relm4::{ComponentParts, ComponentSender, RelmApp, SimpleComponent};
 use std::path::Path;
-use storage::FilesystemStorage;
 use webkit6::prelude::WebViewExt;
-pub mod markdown;
-pub mod note_list;
-pub mod storage;
-pub mod types;
 
 struct AppModel {
     note_list: FactoryVecDeque<NoteListItem>,
@@ -121,19 +117,13 @@ impl SimpleComponent for AppModel {
                     },
                     |result| Some(result),
                 )
-
-                //         let file = File::open(&filename).unwrap();
-                //         let mut reader = BufReader::new(file);
-                //         let mut file_buffer = Vec::new();
-                //         let _ = reader.read_to_end(&mut file_buffer);
-                //         self.note_content = Some(String::from_utf8(file_buffer).unwrap());
             }
         }
     }
 }
 
 fn main() -> glib::ExitCode {
-    let app = RelmApp::new("org.fqxp.relm4test");
+    let app = RelmApp::new("de.fqxp.notes");
     app.run::<AppModel>(None);
 
     return glib::ExitCode::SUCCESS;
