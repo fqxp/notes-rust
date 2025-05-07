@@ -1,7 +1,7 @@
 use gtk::prelude::*;
 use relm4::prelude::*;
 
-use crate::types::Note;
+use crate::storage::Note;
 
 pub struct NoteListItem {
     pub note: Note,
