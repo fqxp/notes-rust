@@ -1,13 +1,14 @@
-use crate::ui::note_list::{NoteListItem, NoteListOutput};
-use crate::{storage::FilesystemStorage, util::markdown::markdown_to_html};
+use crate::{
+    storage::FilesystemStorage,
+    ui::note_list::{NoteListItem, NoteListOutput},
+    util::markdown::markdown_to_html,
+};
 use gtk::prelude::*;
-use relm4::RelmListBoxExt;
-use relm4::prelude::*;
-use relm4::{ComponentParts, ComponentSender, SimpleComponent};
+use relm4::{RelmListBoxExt, prelude::*};
 use std::path::Path;
 use webkit6::prelude::WebViewExt;
 
-pub struct AppModel {
+pub struct App {
     note_list: FactoryVecDeque<NoteListItem>,
     note_content: Option<String>,
     error: Option<String>,
@@ -18,11 +19,12 @@ pub enum AppMsg {
     SelectFile(usize),
 }
 
-#[relm4::component(pub)]
-impl SimpleComponent for AppModel {
+#[relm4::component(pub, async)]
+impl AsyncComponent for App {
     type Init = ();
     type Input = AppMsg;
     type Output = ();
+    type CommandOutput = ();
 
     view! {
         #[root]
@@ -73,18 +75,18 @@ impl SimpleComponent for AppModel {
         }
     }
 
-    fn init(
-        _init: Self::Init,
+    async fn init(
+        _: (),
         root: Self::Root,
-        sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
+        sender: AsyncComponentSender<App>,
+    ) -> AsyncComponentParts<Self> {
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
             .forward(sender.input_sender(), |output| match output {
                 NoteListOutput::SelectFile(index) => AppMsg::SelectFile(index),
             });
 
-        let mut model = AppModel {
+        let mut model = App {
             note_list,
             note_content: None,
             error: None,
@@ -99,10 +101,15 @@ impl SimpleComponent for AppModel {
         let note_list_box = model.note_list.widget();
         let widgets = view_output!();
 
-        ComponentParts { model, widgets }
+        AsyncComponentParts { model, widgets }
     }
 
-    fn update(&mut self, msg: Self::Input, _sender: ComponentSender<Self>) {
+    async fn update(
+        &mut self,
+        msg: Self::Input,
+        _sender: AsyncComponentSender<App>,
+        _root: &Self::Root,
+    ) {
         match msg {
             AppMsg::SelectFile(index) => {
                 let note = &self.note_list[index].note;
