@@ -10,6 +10,7 @@ use webkit6::prelude::WebViewExt;
 pub struct App {
     storage: NoteStorage,
     note_list: FactoryVecDeque<NoteListItem>,
+    current_note_index: Option<usize>,
     note_content: Option<String>,
     error: Option<String>,
 }
@@ -89,6 +90,7 @@ impl AsyncComponent for App {
         let mut model = App {
             storage: storage.clone(),
             note_list,
+            current_note_index: None,
             note_content: None,
             error: None,
         };
@@ -112,8 +114,9 @@ impl AsyncComponent for App {
     ) {
         match msg {
             AppMsg::SelectFile(index) => {
-                let note = &self.note_list[index].note;
-                self.note_content = note.read().map_or_else(
+                self.current_note_index = Some(index);
+                let current_note = &self.note_list[index].note;
+                self.note_content = self.storage.read_content(current_note).map_or_else(
                     |err| {
                         self.error = Some(err.to_string());
                         None

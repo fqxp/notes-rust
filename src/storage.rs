@@ -6,7 +6,15 @@ use std::{fmt, string::FromUtf8Error};
 
 pub struct Note {
     pub name: String,
-    pub file: gio::File,
+    pub filename: PathBuf,
+}
+
+impl Note {
+    pub fn new_from_file(file: gio::File) -> Self {
+        let name = file.basename().unwrap().display().to_string();
+        let filename = file.path().unwrap();
+        Self { name, filename }
+    }
 }
 
 pub enum ReadError {
@@ -35,16 +43,13 @@ impl From<FromUtf8Error> for ReadError {
     }
 }
 
-impl Note {
-    pub fn new(file: gio::File) -> Self {
-        let name = file.basename().unwrap().display().to_string();
-        Self { name, file }
-    }
+pub enum WriteError {
+    IoError(glib::Error),
+}
 
-    pub fn read(self: &Self) -> Result<String, ReadError> {
-        let (contents, _etag) = self.file.load_contents(gio::Cancellable::NONE)?;
-
-        return Result::Ok(String::from_utf8(contents.to_vec())?);
+impl From<glib::Error> for WriteError {
+    fn from(err: glib::Error) -> WriteError {
+        WriteError::IoError(err)
     }
 }
 
@@ -67,9 +72,18 @@ impl NoteStorage {
         )?;
 
         let result: Vec<Note> = file_infos
-            .map(|file_info| Note::new(basedir.child(file_info.unwrap().name())))
+            .map(|file_info| Note::new_from_file(basedir.child(file_info.unwrap().name())))
             .collect();
 
         Result::Ok(result)
     }
+
+    pub fn read_content(self: &Self, note: &Note) -> Result<String, ReadError> {
+        let (contents, _etag) =
+            gio::File::for_path(&note.filename).load_contents(gio::Cancellable::NONE)?;
+
+        return Result::Ok(String::from_utf8(contents.to_vec())?);
+    }
+
+    // pub fn write_content(note: Note) -> Result<(), WriteError> {}
 }
