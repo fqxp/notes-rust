@@ -5,10 +5,10 @@ use crate::{
 };
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
-use std::path::Path;
 use webkit6::prelude::WebViewExt;
 
 pub struct App {
+    storage: FilesystemStorage,
     note_list: FactoryVecDeque<NoteListItem>,
     note_content: Option<String>,
     error: Option<String>,
@@ -21,7 +21,7 @@ pub enum AppMsg {
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for App {
-    type Init = ();
+    type Init = FilesystemStorage;
     type Input = AppMsg;
     type Output = ();
     type CommandOutput = ();
@@ -76,7 +76,7 @@ impl AsyncComponent for App {
     }
 
     async fn init(
-        _: (),
+        storage: FilesystemStorage,
         root: Self::Root,
         sender: AsyncComponentSender<App>,
     ) -> AsyncComponentParts<Self> {
@@ -87,12 +87,12 @@ impl AsyncComponent for App {
             });
 
         let mut model = App {
+            storage: storage.clone(),
             note_list,
             note_content: None,
             error: None,
         };
 
-        let storage = FilesystemStorage::new(Path::new("/home/frank/notes/persönlich"));
         let notes = storage.list().unwrap();
         for note in notes.into_iter() {
             model.note_list.guard().push_back(note);

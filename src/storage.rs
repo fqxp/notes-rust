@@ -1,7 +1,7 @@
-use gtk::gio::prelude::{FileExt, FileExtManual};
-use gtk::gio::{self, Cancellable};
+use gtk::gio;
+use gtk::gio::prelude::*;
 use gtk::glib;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::{fmt, string::FromUtf8Error};
 
 pub struct Note {
@@ -42,19 +42,19 @@ impl Note {
     }
 
     pub fn read(self: &Self) -> Result<String, ReadError> {
-        let (contents, _etag) = self
-            .file
-            .load_contents((None as Option<Cancellable>).as_ref())?;
+        let (contents, _etag) = self.file.load_contents(gio::Cancellable::NONE)?;
 
         return Result::Ok(String::from_utf8(contents.to_vec())?);
     }
 }
-pub struct FilesystemStorage<'a> {
-    basedir: &'a Path,
+
+#[derive(Clone)]
+pub struct FilesystemStorage {
+    basedir: PathBuf,
 }
 
-impl<'a> FilesystemStorage<'a> {
-    pub fn new(basedir: &'a Path) -> Self {
+impl FilesystemStorage {
+    pub fn new(basedir: PathBuf) -> Self {
         Self { basedir }
     }
 
@@ -63,7 +63,7 @@ impl<'a> FilesystemStorage<'a> {
         let file_infos = basedir.enumerate_children(
             "",
             gio::FileQueryInfoFlags::NONE,
-            (None as Option<Cancellable>).as_ref(),
+            gio::Cancellable::NONE,
         )?;
 
         let result: Vec<Note> = file_infos
@@ -71,11 +71,5 @@ impl<'a> FilesystemStorage<'a> {
             .collect();
 
         Result::Ok(result)
-    }
-
-    pub fn open(self: Self, relative_path: PathBuf) -> gio::File {
-        let absolute_path = self.basedir.join(relative_path);
-
-        gio::File::for_path(absolute_path)
     }
 }
