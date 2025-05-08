@@ -95,7 +95,17 @@ impl AsyncComponent for App {
             error: None,
         };
 
-        let notes = storage.list().unwrap();
+        let notes = storage
+            .list()
+            .await
+            .map_or_else(
+                |err| {
+                    model.error = Some(err.to_string());
+                    None
+                },
+                |result| Some(result),
+            )
+            .unwrap();
         for note in notes.into_iter() {
             model.note_list.guard().push_back(note);
         }
@@ -116,7 +126,7 @@ impl AsyncComponent for App {
             AppMsg::SelectFile(index) => {
                 self.current_note_index = Some(index);
                 let current_note = &self.note_list[index].note;
-                self.note_content = self.storage.read_content(current_note).map_or_else(
+                self.note_content = self.storage.read_content(current_note).await.map_or_else(
                     |err| {
                         self.error = Some(err.to_string());
                         None

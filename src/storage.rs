@@ -63,13 +63,11 @@ impl NoteStorage {
         Self { basedir }
     }
 
-    pub fn list(self: Self) -> Result<Vec<Note>, gtk::glib::Error> {
+    pub async fn list(self: Self) -> Result<Vec<Note>, gtk::glib::Error> {
         let basedir = gio::File::for_path(self.basedir);
-        let file_infos = basedir.enumerate_children(
-            "",
-            gio::FileQueryInfoFlags::NONE,
-            gio::Cancellable::NONE,
-        )?;
+        let file_infos = basedir
+            .enumerate_children_future("", gio::FileQueryInfoFlags::NONE, glib::Priority::DEFAULT)
+            .await?;
 
         let result: Vec<Note> = file_infos
             .map(|file_info| Note::new_from_file(basedir.child(file_info.unwrap().name())))
@@ -78,11 +76,12 @@ impl NoteStorage {
         Result::Ok(result)
     }
 
-    pub fn read_content(self: &Self, note: &Note) -> Result<String, ReadError> {
-        let (contents, _etag) =
-            gio::File::for_path(&note.filename).load_contents(gio::Cancellable::NONE)?;
+    pub async fn read_content(self: &Self, note: &Note) -> Result<String, ReadError> {
+        let (content, _etag) = gio::File::for_path(&note.filename)
+            .load_contents_future()
+            .await?;
 
-        return Result::Ok(String::from_utf8(contents.to_vec())?);
+        return Result::Ok(String::from_utf8(content.to_vec())?);
     }
 
     // pub fn write_content(note: Note) -> Result<(), WriteError> {}
