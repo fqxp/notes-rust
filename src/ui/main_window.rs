@@ -1,5 +1,5 @@
 use crate::{
-    storage::FilesystemStorage,
+    storage::NoteStorage,
     ui::note_list::{NoteListItem, NoteListOutput},
     util::markdown::markdown_to_html,
 };
@@ -8,7 +8,7 @@ use relm4::{RelmListBoxExt, prelude::*};
 use webkit6::prelude::WebViewExt;
 
 pub struct App {
-    storage: FilesystemStorage,
+    storage: NoteStorage,
     note_list: FactoryVecDeque<NoteListItem>,
     note_content: Option<String>,
     error: Option<String>,
@@ -21,7 +21,7 @@ pub enum AppMsg {
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for App {
-    type Init = FilesystemStorage;
+    type Init = NoteStorage;
     type Input = AppMsg;
     type Output = ();
     type CommandOutput = ();
@@ -76,7 +76,7 @@ impl AsyncComponent for App {
     }
 
     async fn init(
-        storage: FilesystemStorage,
+        storage: NoteStorage,
         root: Self::Root,
         sender: AsyncComponentSender<App>,
     ) -> AsyncComponentParts<Self> {

@@ -49,11 +49,11 @@ impl Note {
 }
 
 #[derive(Clone)]
-pub struct FilesystemStorage {
+pub struct NoteStorage {
     basedir: PathBuf,
 }
 
-impl FilesystemStorage {
+impl NoteStorage {
     pub fn new(basedir: PathBuf) -> Self {
         Self { basedir }
     }
