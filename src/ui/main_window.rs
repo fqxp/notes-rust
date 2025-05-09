@@ -1,23 +1,32 @@
 use crate::{
     storage::NoteStorage,
-    ui::note_list::{NoteListItem, NoteListOutput},
-    util::markdown::markdown_to_html,
+    ui::{
+        note_content_view::{NoteContentView, NoteContentViewOutput},
+        note_list_view::{NoteListItem, NoteListOutput},
+    },
 };
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
-use webkit6::prelude::WebViewExt;
+
+use super::note_content_view::NoteContentViewInput;
+
+pub enum EditMode {
+    EDITING,
+    VIEWING,
+}
 
 pub struct App {
-    storage: NoteStorage,
     note_list: FactoryVecDeque<NoteListItem>,
     current_note_index: Option<usize>,
-    note_content: Option<String>,
+    mode: EditMode,
     error: Option<String>,
+    content_view: AsyncController<NoteContentView>,
 }
 
 #[derive(Debug)]
 pub enum AppMsg {
     SelectFile(usize),
+    ContentChanged,
 }
 
 #[relm4::component(pub, async)]
@@ -30,9 +39,9 @@ impl AsyncComponent for App {
     view! {
         #[root]
         gtk::Window {
-            set_title: Some("simple app"),
-            set_default_width: 100,
-            set_default_height: 100,
+            set_title: Some("notes"),
+            set_default_width: 600,
+            set_default_height: 400,
 
             gtk::Box{
                 set_orientation: gtk::Orientation::Vertical,
@@ -58,19 +67,7 @@ impl AsyncComponent for App {
                     },
 
                     #[wrap(Some)]
-                    set_end_child = match &model.note_content {
-                        Some(markdown) => &webkit6::WebView {
-                           set_vexpand: true,
-                           #[watch]
-                           load_html[None]: markdown_to_html(markdown).as_str()
-
-                        }
-                        None => {
-                            &gtk::Label {
-                                set_label: "no note loaded",
-                            }
-                        }
-                    },
+                    set_end_child = model.content_view.widget(),
                 }
             }
         }
@@ -81,6 +78,12 @@ impl AsyncComponent for App {
         root: Self::Root,
         sender: AsyncComponentSender<App>,
     ) -> AsyncComponentParts<Self> {
+        let content_view: AsyncController<NoteContentView> = NoteContentView::builder()
+            .launch(())
+            .forward(sender.input_sender(), |msg| match msg {
+                NoteContentViewOutput::ContentChanged => AppMsg::ContentChanged,
+            });
+
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
             .forward(sender.input_sender(), |output| match output {
@@ -88,11 +91,11 @@ impl AsyncComponent for App {
             });
 
         let mut model = App {
-            storage: storage.clone(),
             note_list,
             current_note_index: None,
-            note_content: None,
+            mode: EditMode::VIEWING,
             error: None,
+            content_view,
         };
 
         let notes = storage
@@ -126,13 +129,13 @@ impl AsyncComponent for App {
             AppMsg::SelectFile(index) => {
                 self.current_note_index = Some(index);
                 let current_note = &self.note_list[index].note;
-                self.note_content = self.storage.read_content(current_note).await.map_or_else(
-                    |err| {
-                        self.error = Some(err.to_string());
-                        None
-                    },
-                    |result| Some(result),
-                )
+                self.content_view
+                    .sender()
+                    .send(NoteContentViewInput::LoadNote(current_note.clone()))
+                    .unwrap()
+            }
+            AppMsg::ContentChanged => {
+                println!("content changed");
             }
         }
     }

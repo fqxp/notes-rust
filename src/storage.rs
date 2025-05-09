@@ -4,16 +4,48 @@ use gtk::glib;
 use std::path::PathBuf;
 use std::{fmt, string::FromUtf8Error};
 
+#[derive(Clone, Debug)]
 pub struct Note {
-    pub name: String,
     pub filename: PathBuf,
+    file: gio::File,
 }
 
 impl Note {
     pub fn new_from_file(file: gio::File) -> Self {
-        let name = file.basename().unwrap().display().to_string();
         let filename = file.path().unwrap();
-        Self { name, filename }
+
+        Self { filename, file }
+    }
+
+    pub fn name(self: &Self) -> String {
+        self.file.basename().unwrap().display().to_string()
+    }
+
+    pub fn display_filename(self: &Self) -> String {
+        let base_filename = self
+            .file
+            .basename()
+            .unwrap()
+            .to_string_lossy()
+            .rsplit("/")
+            .next()
+            .unwrap()
+            .to_string();
+
+        match base_filename.strip_suffix(".md") {
+            Some(name) => name.to_string(),
+            None => base_filename,
+        }
+    }
+
+    pub fn file(self: &Self) -> gio::File {
+        self.file.clone()
+    }
+
+    pub async fn read_content(self: &Self) -> Result<String, ReadError> {
+        let (content, _etag) = self.file.load_contents_future().await?;
+
+        return Result::Ok(String::from_utf8(content.to_vec())?);
     }
 }
 
@@ -55,31 +87,31 @@ impl From<glib::Error> for WriteError {
 
 #[derive(Clone)]
 pub struct NoteStorage {
-    basedir: PathBuf,
+    basedir: gio::File,
 }
 
 impl NoteStorage {
     pub fn new(basedir: PathBuf) -> Self {
-        Self { basedir }
+        Self {
+            basedir: gio::File::for_path(basedir),
+        }
     }
 
     pub async fn list(self: Self) -> Result<Vec<Note>, gtk::glib::Error> {
-        let basedir = gio::File::for_path(self.basedir);
-        let file_infos = basedir
+        let file_infos = self
+            .basedir
             .enumerate_children_future("", gio::FileQueryInfoFlags::NONE, glib::Priority::DEFAULT)
             .await?;
 
         let result: Vec<Note> = file_infos
-            .map(|file_info| Note::new_from_file(basedir.child(file_info.unwrap().name())))
+            .map(|file_info| Note::new_from_file(self.basedir.child(file_info.unwrap().name())))
             .collect();
 
         Result::Ok(result)
     }
 
     pub async fn read_content(self: &Self, note: &Note) -> Result<String, ReadError> {
-        let (content, _etag) = gio::File::for_path(&note.filename)
-            .load_contents_future()
-            .await?;
+        let (content, _etag) = note.file.load_contents_future().await?;
 
         return Result::Ok(String::from_utf8(content.to_vec())?);
     }
