@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use notes::{storage::NoteStorage, ui::main_window::App};
+use notes::{storage::NoteStorage, ui::window::App};
 use relm4::RelmApp;
 
 fn main() -> Result<(), ()> {
