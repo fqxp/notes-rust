@@ -8,4 +8,6 @@ gtk = { version = "0.9.6", package = "gtk4", features = ["v4_16"] }
 markdown = "1.0.0"
 relm4 = "0.9.1"
 relm4-components = "0.9.1"
+sourceview5 = "0.9.1"
+tracker = "0.2.2"
 webkit6 = "0.4.0"

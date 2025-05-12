@@ -24,6 +24,7 @@
         buildInputs = with pkgs; [
           rust-bin.stable.latest.default
           gtk4
+          gtksourceview5
           webkitgtk_6_0
         ];
       in

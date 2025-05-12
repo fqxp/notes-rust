@@ -1,24 +1,18 @@
 use crate::{
     storage::NoteStorage,
     ui::{
-        note_content_view::{NoteContentView, NoteContentViewOutput},
+        note_content_view::NoteContentView,
         note_list_view::{NoteListItem, NoteListOutput},
     },
 };
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
 
-use super::note_content_view::NoteContentViewInput;
-
-pub enum EditMode {
-    EDITING,
-    VIEWING,
-}
+use super::note_content_view::NoteContentViewMsg;
 
 pub struct App {
     note_list: FactoryVecDeque<NoteListItem>,
     current_note_index: Option<usize>,
-    mode: EditMode,
     error: Option<String>,
     content_view: AsyncController<NoteContentView>,
 }
@@ -78,11 +72,8 @@ impl AsyncComponent for App {
         root: Self::Root,
         sender: AsyncComponentSender<App>,
     ) -> AsyncComponentParts<Self> {
-        let content_view: AsyncController<NoteContentView> = NoteContentView::builder()
-            .launch(())
-            .forward(sender.input_sender(), |msg| match msg {
-                NoteContentViewOutput::ContentChanged => AppMsg::ContentChanged,
-            });
+        let content_view: AsyncController<NoteContentView> =
+            NoteContentView::builder().launch(()).detach();
 
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
@@ -93,7 +84,6 @@ impl AsyncComponent for App {
         let mut model = App {
             note_list,
             current_note_index: None,
-            mode: EditMode::VIEWING,
             error: None,
             content_view,
         };
@@ -131,7 +121,7 @@ impl AsyncComponent for App {
                 let current_note = &self.note_list[index].note;
                 self.content_view
                     .sender()
-                    .send(NoteContentViewInput::LoadNote(current_note.clone()))
+                    .send(NoteContentViewMsg::LoadNote(current_note.clone()))
                     .unwrap()
             }
             AppMsg::ContentChanged => {
