@@ -25,6 +25,7 @@ pub enum Mode {
 
 #[derive(Debug)]
 pub enum NoteContentViewMsg {
+    ContentChanged(String),
     LoadNote(Note),
     SetMode(Mode),
 }
@@ -65,7 +66,8 @@ impl AsyncComponent for NoteContentView {
                        #[watch]
                        load_html[None]: markdown_to_html(markdown).as_str(),
                     } -> web_view: gtk::StackPage { set_name: "view" },
-                    add_child = &sourceview5::View::with_buffer(&model.buffer) {
+                    add_child = &sourceview5::View {
+                        set_buffer: Some(&model.buffer),
                     } -> editor: gtk::StackPage { set_name: "edit"},
                 }
                 None => {
@@ -97,8 +99,12 @@ impl AsyncComponent for NoteContentView {
         };
 
         let sender_clone = sender.clone();
-        model.buffer.connect_changed(move |_| {
+        model.buffer.connect_changed(move |buffer| {
             let _ = sender_clone.output(NoteContentViewOutput::Changed);
+            let text = buffer
+                .text(&buffer.start_iter(), &buffer.end_iter(), false)
+                .to_string();
+            let _ = sender_clone.input(NoteContentViewMsg::ContentChanged(text));
         });
 
         let widgets = view_output!();
@@ -113,6 +119,9 @@ impl AsyncComponent for NoteContentView {
         _root: &Self::Root,
     ) {
         match msg {
+            NoteContentViewMsg::ContentChanged(text) => {
+                self.content = Some(text);
+            }
             NoteContentViewMsg::SetMode(mode) => {
                 self.mode = mode;
             }
