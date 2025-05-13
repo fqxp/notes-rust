@@ -5,6 +5,7 @@ use crate::{
         note_list_view::{NoteListItem, NoteListOutput},
     },
 };
+use adw;
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
 
@@ -30,7 +31,7 @@ impl AsyncComponent for App {
 
     view! {
         #[root]
-        gtk::Window {
+        adw::Window {
             set_title: Some("notes"),
             set_default_width: 600,
             set_default_height: 400,

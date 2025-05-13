@@ -25,6 +25,7 @@
           rust-bin.stable.latest.default
           gtk4
           gtksourceview5
+          libadwaita
           webkitgtk_6_0
         ];
       in
