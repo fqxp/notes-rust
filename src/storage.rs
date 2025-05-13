@@ -4,7 +4,7 @@ use gtk::{
 };
 use std::{fmt, path::PathBuf, string::FromUtf8Error};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Note {
     pub filename: PathBuf,
     file: gio::File,
@@ -42,10 +42,31 @@ impl Note {
         self.file.clone()
     }
 
-    pub async fn read_content(self: &Self) -> Result<String, ReadError> {
-        let (content, _etag) = self.file.load_contents_future().await?;
+    pub async fn load_content(&self) -> Result<(String, Option<String>), ReadError> {
+        let (content, etag) = self.file.load_contents_future().await?;
+        let etag = etag.and_then(|g_string| Some(g_string.to_string()));
+        println!("load_content etag={:?}", &etag);
 
-        return Result::Ok(String::from_utf8(content.to_vec())?);
+        return Result::Ok((String::from_utf8(content.to_vec())?, etag));
+    }
+
+    pub async fn save_content(
+        &self,
+        content: &String,
+        etag: &Option<String>,
+    ) -> Result<String, WriteError> {
+        let (_, etag_after_save) = self
+            .file
+            .replace_contents_future(
+                content.as_bytes().to_vec(),
+                etag.as_deref(),
+                false,
+                gio::FileCreateFlags::NONE,
+            )
+            .await?;
+        println!("save_content etag={:?}", &etag);
+
+        Result::Ok(etag_after_save.to_string())
     }
 }
 
@@ -79,9 +100,17 @@ pub enum WriteError {
     IoError(glib::Error),
 }
 
-impl From<glib::Error> for WriteError {
-    fn from(err: glib::Error) -> WriteError {
-        WriteError::IoError(err)
+impl From<(Vec<u8>, glib::Error)> for WriteError {
+    fn from(err: (Vec<u8>, glib::Error)) -> WriteError {
+        WriteError::IoError(err.1)
+    }
+}
+
+impl fmt::Display for WriteError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            WriteError::IoError(err) => write!(f, "{}", err.to_string()),
+        }
     }
 }
 
@@ -109,12 +138,4 @@ impl NoteStorage {
 
         Result::Ok(result)
     }
-
-    pub async fn read_content(self: &Self, note: &Note) -> Result<String, ReadError> {
-        let (content, _etag) = note.file.load_contents_future().await?;
-
-        return Result::Ok(String::from_utf8(content.to_vec())?);
-    }
-
-    // pub fn write_content(note: Note) -> Result<(), WriteError> {}
 }

@@ -16,14 +16,18 @@ use super::{
 
 #[tracker::track]
 pub struct NoteContentView {
+    note: Option<Note>,
     content: Option<String>,
+    #[tracker::do_not_track]
+    etag: Option<String>,
+    mode: Mode,
+    language: Option<sourceview5::Language>,
     #[tracker::do_not_track]
     panel: Controller<NoteContentPanel>,
     #[tracker::do_not_track]
     web_view: Controller<NoteWebView>,
     #[tracker::do_not_track]
     editor: Controller<NoteEditor>,
-    mode: Mode,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -41,7 +45,7 @@ pub enum NoteContentViewMsg {
 
 #[derive(Debug)]
 pub enum NoteContentViewOutput {
-    Changed,
+    ContentChanged(String),
 }
 
 #[relm4::component(pub, async)]
@@ -107,10 +111,13 @@ impl AsyncComponent for NoteContentView {
             });
 
         let model = NoteContentView {
+            note: None,
+            content: None,
+            etag: None,
+            language: None,
             panel,
             web_view,
             editor,
-            content: None,
             mode: Mode::View,
             tracker: 0,
         };
@@ -128,14 +135,32 @@ impl AsyncComponent for NoteContentView {
     ) {
         match msg {
             NoteContentViewMsg::ContentChanged(text) => {
-                self.content = Some(text);
+                self.set_content(Some(text));
+
+                self.etag = self
+                    .note
+                    .clone()
+                    .unwrap()
+                    .save_content(&self.content.clone().unwrap(), &self.etag)
+                    .await
+                    .map_or_else(
+                        |err| {
+                            println!("error while saving: {}", err);
+                            None
+                        },
+                        |etag| Some(etag),
+                    );
             }
             NoteContentViewMsg::SetMode(mode) => {
                 self.mode = mode;
+
                 let content = self.content.clone().unwrap();
                 match &self.mode {
                     Mode::Edit => {
-                        self.editor.emit(NoteEditorMsg::ChangeContent(content));
+                        self.editor.emit(NoteEditorMsg::SetContent(
+                            content,
+                            self.note.clone().unwrap().filename,
+                        ));
                     }
                     Mode::View => {
                         self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
@@ -143,15 +168,16 @@ impl AsyncComponent for NoteContentView {
                 }
             }
             NoteContentViewMsg::LoadNote(note) => {
-                self.mode = Mode::View;
-                self.content = note.read_content().await.map_or_else(
+                (self.content, self.etag) = note.load_content().await.map_or_else(
                     |err| {
-                        // self.error = Some(err.to_string());
-                        println!("{}", err);
-                        None
+                        println!("error while loading: {}", err);
+                        (None, None)
                     },
-                    |result| Some(result),
+                    |(content, etag)| (Some(content), etag),
                 );
+                self.note = Some(note);
+                self.mode = Mode::View;
+
                 let content = self.content.clone().unwrap();
                 self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
             }
