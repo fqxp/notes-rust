@@ -42,7 +42,7 @@ impl AsyncComponent for App {
                     set_label: model.error.as_deref().unwrap_or(""),
                 },
                 gtk::Paned::new(gtk::Orientation::Horizontal) {
-                    set_position: 200,
+                    set_position: 250,
                     set_wide_handle: true,
 
                     #[wrap(Some)]
