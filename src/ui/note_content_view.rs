@@ -1,20 +1,29 @@
 use crate::{
     storage::Note,
-    ui::note_content_panel::{NoteContentPanel, NoteContentPanelOutput},
-    util::markdown::markdown_to_html,
+    ui::{
+        note_content_panel::{NoteContentPanel, NoteContentPanelOutput},
+        note_editor::NoteEditorOutput,
+        note_web_view::NoteWebView,
+    },
 };
 use gtk::prelude::*;
 use relm4::{Controller, prelude::*};
-use sourceview5::{self, prelude::*};
-use webkit6::prelude::WebViewExt;
+
+use super::{
+    note_editor::{NoteEditor, NoteEditorMsg},
+    note_web_view::NoteWebViewMsg,
+};
 
 #[tracker::track]
 pub struct NoteContentView {
     content: Option<String>,
     #[tracker::do_not_track]
     panel: Controller<NoteContentPanel>,
+    #[tracker::do_not_track]
+    web_view: Controller<NoteWebView>,
+    #[tracker::do_not_track]
+    editor: Controller<NoteEditor>,
     mode: Mode,
-    buffer: sourceview5::Buffer,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -47,35 +56,34 @@ impl AsyncComponent for NoteContentView {
         gtk::Box {
             set_orientation: gtk::Orientation::Vertical,
 
-            container_add = match &model.content {
+            match &model.content {
                 Some(_) => gtk::Box {
-                    append = model.panel.widget(),
+                    set_orientation: gtk::Orientation::Horizontal,
+                    model.panel.widget(),
                 },
                 _ => gtk::Box {}
             },
 
-            match &model.content {
-                Some(markdown) => &gtk::Stack {
-                    #[watch]
-                    set_visible_child_name: match &model.mode {
-                        Mode::View => "view",
-                        Mode::Edit => "edit"
-                    },
-                    add_child = &webkit6::WebView {
-                       set_vexpand: true,
-                       #[watch]
-                       load_html[None]: markdown_to_html(markdown).as_str(),
-                    } -> web_view: gtk::StackPage { set_name: "view" },
-                    add_child = &sourceview5::View {
-                        set_buffer: Some(&model.buffer),
-                    } -> editor: gtk::StackPage { set_name: "edit"},
-                }
-                None => {
-                    &gtk::Label {
-                        set_label: "no note loaded",
-                    }
-                }
-            }
+            gtk::Stack {
+                add_child = &gtk::Box {
+                    set_hexpand: true,
+                    append: model.web_view.widget()
+                } -> { set_name: "view" },
+                add_child = &gtk::Box {
+                    set_hexpand: true,
+                    append: model.editor.widget()
+                } -> { set_name: "edit" },
+                add_child = &gtk::Label {
+                    set_label: "no note loaded",
+                } -> { set_name: "none" },
+
+                #[watch]
+                set_visible_child_name: match (&model.mode, &model.content) {
+                    (_, None) => "none",
+                    (Mode::View, _) => "view",
+                    (Mode::Edit, _) => "edit"
+                },
+            },
         }
     }
 
@@ -90,22 +98,22 @@ impl AsyncComponent for NoteContentView {
                 NoteContentPanelOutput::SetMode(mode) => NoteContentViewMsg::SetMode(mode),
             },
         );
+        let web_view: Controller<NoteWebView> =
+            NoteWebView::builder().launch(String::from("")).detach();
+        let editor: Controller<NoteEditor> = NoteEditor::builder()
+            .launch(String::from(""))
+            .forward(sender.input_sender(), |msg| match msg {
+                NoteEditorOutput::ContentChanged(text) => NoteContentViewMsg::ContentChanged(text),
+            });
+
         let model = NoteContentView {
             panel,
+            web_view,
+            editor,
             content: None,
             mode: Mode::View,
-            buffer: sourceview5::Buffer::new(None),
             tracker: 0,
         };
-
-        let sender_clone = sender.clone();
-        model.buffer.connect_changed(move |buffer| {
-            let _ = sender_clone.output(NoteContentViewOutput::Changed);
-            let text = buffer
-                .text(&buffer.start_iter(), &buffer.end_iter(), false)
-                .to_string();
-            let _ = sender_clone.input(NoteContentViewMsg::ContentChanged(text));
-        });
 
         let widgets = view_output!();
 
@@ -124,6 +132,15 @@ impl AsyncComponent for NoteContentView {
             }
             NoteContentViewMsg::SetMode(mode) => {
                 self.mode = mode;
+                let content = self.content.clone().unwrap();
+                match &self.mode {
+                    Mode::Edit => {
+                        self.editor.emit(NoteEditorMsg::ChangeContent(content));
+                    }
+                    Mode::View => {
+                        self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
+                    }
+                }
             }
             NoteContentViewMsg::LoadNote(note) => {
                 self.mode = Mode::View;
@@ -135,12 +152,8 @@ impl AsyncComponent for NoteContentView {
                     },
                     |result| Some(result),
                 );
-                self.buffer.set_language(
-                    sourceview5::LanguageManager::default()
-                        .guess_language(Some(&note.filename), None)
-                        .as_ref(),
-                );
-                self.buffer.set_text(self.content.as_ref().unwrap());
+                let content = self.content.clone().unwrap();
+                self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
             }
         }
     }
