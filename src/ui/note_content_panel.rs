@@ -2,7 +2,7 @@ use gtk::prelude::*;
 use relm4::Component;
 use relm4::prelude::*;
 
-use super::note_content_view::Mode;
+use crate::ui::note_content_view::Mode;
 
 pub struct NoteContentPanel {
     mode: Mode,

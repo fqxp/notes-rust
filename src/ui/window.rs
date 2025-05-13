@@ -1,14 +1,12 @@
 use crate::{
     storage::NoteStorage,
     ui::{
-        note_content_view::NoteContentView,
+        note_content_view::{NoteContentView, NoteContentViewMsg},
         note_list_view::{NoteListItem, NoteListOutput},
     },
 };
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
-
-use super::note_content_view::NoteContentViewMsg;
 
 pub struct App {
     note_list: FactoryVecDeque<NoteListItem>,

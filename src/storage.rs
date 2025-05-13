@@ -1,8 +1,8 @@
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
-use std::path::PathBuf;
-use std::{fmt, string::FromUtf8Error};
+use gtk::{
+    gio::{self, prelude::*},
+    glib,
+};
+use std::{fmt, path::PathBuf, string::FromUtf8Error};
 
 #[derive(Clone, Debug)]
 pub struct Note {
