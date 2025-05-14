@@ -1,5 +1,5 @@
 use gtk::{
-    gio::{self, prelude::*},
+    gio::{self, FileType, prelude::*},
     glib,
 };
 use std::{fmt, path::PathBuf, string::FromUtf8Error};
@@ -8,13 +8,18 @@ use std::{fmt, path::PathBuf, string::FromUtf8Error};
 pub struct Note {
     pub filename: PathBuf,
     file: gio::File,
+    is_dir: bool,
 }
 
 impl Note {
-    pub fn new_from_file(file: gio::File) -> Self {
+    pub fn new_from_file(file: gio::File, is_dir: bool) -> Self {
         let filename = file.path().unwrap();
 
-        Self { filename, file }
+        Self {
+            filename,
+            file,
+            is_dir,
+        }
     }
 
     pub fn name(self: &Self) -> String {
@@ -31,6 +36,10 @@ impl Note {
             .next()
             .unwrap()
             .to_string();
+
+        if self.is_dir {
+            return format!("{}/", base_filename);
+        }
 
         match base_filename.strip_suffix(".md") {
             Some(name) => name.to_string(),
@@ -133,7 +142,12 @@ impl NoteStorage {
             .await?;
 
         let result: Vec<Note> = file_infos
-            .map(|file_info| Note::new_from_file(self.basedir.child(file_info.unwrap().name())))
+            .map(|file_info| {
+                let file_info = file_info.unwrap();
+                let filename = self.basedir.child(file_info.name());
+                let is_dir = file_info.file_type() == FileType::Directory;
+                Note::new_from_file(filename, is_dir)
+            })
             .collect();
 
         Result::Ok(result)
