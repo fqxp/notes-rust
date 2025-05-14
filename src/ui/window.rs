@@ -1,30 +1,25 @@
-use crate::{
-    storage::NoteStorage,
-    ui::{
-        note_content_view::{NoteContentView, NoteContentViewMsg},
-        note_list_view::{NoteListItem, NoteListOutput},
-    },
-};
+use crate::storage::Note;
+use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
+use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
 use adw;
 use gtk::prelude::*;
-use relm4::{RelmListBoxExt, prelude::*};
+use relm4::prelude::*;
 
 pub struct App {
-    note_list: FactoryVecDeque<NoteListItem>,
-    current_note_index: Option<usize>,
     error: Option<String>,
+    list_view: AsyncController<NoteListView>,
     content_view: AsyncController<NoteContentView>,
 }
 
 #[derive(Debug)]
 pub enum AppMsg {
-    SelectFile(usize),
+    SelectedNote(Note),
     ContentChanged,
 }
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for App {
-    type Init = NoteStorage;
+    type Init = ();
     type Input = AppMsg;
     type Output = ();
     type CommandOutput = ();
@@ -47,17 +42,7 @@ impl AsyncComponent for App {
                     set_wide_handle: true,
 
                     #[wrap(Some)]
-                    set_start_child = &gtk::ScrolledWindow {
-                        set_vexpand: true,
-
-                        #[local_ref]
-                        note_list_box -> gtk::ListBox {
-                            connect_row_activated[sender] => move |list_box, row| {
-                                let index = list_box.index_of_child(row).unwrap() as usize;
-                                sender.input_sender().emit(AppMsg::SelectFile(index));
-                            }
-                        },
-                    },
+                    set_start_child = model.list_view.widget() ,
 
                     #[wrap(Some)]
                     set_end_child = model.content_view.widget(),
@@ -67,42 +52,27 @@ impl AsyncComponent for App {
     }
 
     async fn init(
-        storage: NoteStorage,
+        _: Self::Init,
         root: Self::Root,
-        sender: AsyncComponentSender<App>,
+        sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
         let content_view: AsyncController<NoteContentView> =
             NoteContentView::builder().launch(()).detach();
+        let list_view: AsyncController<NoteListView> = NoteListView::builder().launch(()).forward(
+            sender.input_sender(),
+            |msg| -> Self::Input {
+                match msg {
+                    NoteListViewOutput::SelectedNote(note) => AppMsg::SelectedNote(note),
+                }
+            },
+        );
 
-        let note_list = FactoryVecDeque::builder()
-            .launch(gtk::ListBox::default())
-            .forward(sender.input_sender(), |output| match output {
-                NoteListOutput::SelectFile(index) => AppMsg::SelectFile(index),
-            });
-
-        let mut model = App {
-            note_list,
-            current_note_index: None,
+        let model = App {
             error: None,
+            list_view,
             content_view,
         };
 
-        let notes = storage
-            .list()
-            .await
-            .map_or_else(
-                |err| {
-                    model.error = Some(err.to_string());
-                    None
-                },
-                |result| Some(result),
-            )
-            .unwrap();
-        for note in notes.into_iter() {
-            model.note_list.guard().push_back(note);
-        }
-
-        let note_list_box = model.note_list.widget();
         let widgets = view_output!();
 
         AsyncComponentParts { model, widgets }
@@ -115,13 +85,8 @@ impl AsyncComponent for App {
         _root: &Self::Root,
     ) {
         match msg {
-            AppMsg::SelectFile(index) => {
-                self.current_note_index = Some(index);
-                let current_note = &self.note_list[index].note;
-                self.content_view
-                    .sender()
-                    .send(NoteContentViewMsg::LoadNote(current_note.clone()))
-                    .unwrap()
+            AppMsg::SelectedNote(note) => {
+                self.content_view.emit(NoteContentViewMsg::LoadNote(note))
             }
             AppMsg::ContentChanged => {
                 println!("content changed");
