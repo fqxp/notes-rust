@@ -3,7 +3,10 @@ use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
 use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
 use adw;
 use gtk::prelude::*;
+use relm4::actions::AccelsPlus;
 use relm4::prelude::*;
+
+use super::note_content_view::ToggleModeAction;
 
 pub struct App {
     error: Option<String>,
@@ -74,6 +77,9 @@ impl AsyncComponent for App {
         };
 
         let widgets = view_output!();
+
+        let app = relm4::main_application();
+        app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);
 
         AsyncComponentParts { model, widgets }
     }
