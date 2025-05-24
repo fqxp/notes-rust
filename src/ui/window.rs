@@ -1,4 +1,4 @@
-use crate::storage::Note;
+use crate::storage::{AnyItem, ItemKind};
 use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
 use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
 use adw;
@@ -16,7 +16,7 @@ pub struct App {
 
 #[derive(Debug)]
 pub enum AppMsg {
-    SelectedNote(Note),
+    SelectedNode(Box<dyn AnyItem>),
     ContentChanged,
 }
 
@@ -65,7 +65,7 @@ impl AsyncComponent for App {
             sender.input_sender(),
             |msg| -> Self::Input {
                 match msg {
-                    NoteListViewOutput::SelectedNote(note) => AppMsg::SelectedNote(note),
+                    NoteListViewOutput::SelectedNode(note) => AppMsg::SelectedNode(note),
                 }
             },
         );
@@ -91,9 +91,14 @@ impl AsyncComponent for App {
         _root: &Self::Root,
     ) {
         match msg {
-            AppMsg::SelectedNote(note) => {
-                self.content_view.emit(NoteContentViewMsg::LoadNote(note))
-            }
+            AppMsg::SelectedNode(note) => match note.kind() {
+                ItemKind::Note => self.content_view.emit(NoteContentViewMsg::LoadedNote {
+                    note: note.as_note().unwrap(),
+                    content: String::from("hallo"),
+                }),
+
+                _ => {}
+            },
             AppMsg::ContentChanged => {
                 println!("content changed");
             }

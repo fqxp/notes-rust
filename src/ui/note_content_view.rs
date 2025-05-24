@@ -1,5 +1,5 @@
 use crate::{
-    storage::Note,
+    storage::{AnyItem, AnyNote},
     ui::{
         note_content_panel::{NoteContentPanel, NoteContentPanelOutput},
         note_editor::NoteEditorOutput,
@@ -19,7 +19,7 @@ use super::{
 };
 
 pub struct NoteContentView {
-    note: Option<Note>,
+    note: Option<Box<dyn AnyNote>>,
     content: Option<String>,
     etag: Option<String>,
     mode: Mode,
@@ -35,10 +35,10 @@ impl NoteContentView {
         let content = self.content.clone().unwrap();
         match &self.mode {
             Mode::Edit => {
-                self.editor.emit(NoteEditorMsg::SetContent(
+                self.editor.emit(NoteEditorMsg::SetContent {
                     content,
-                    self.note.clone().unwrap().filename,
-                ));
+                    name: self.note.as_ref().unwrap().name(),
+                });
             }
             Mode::View => {
                 self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
@@ -65,14 +65,20 @@ impl Mode {
 #[derive(Debug)]
 pub enum NoteContentViewMsg {
     ContentChanged(String),
-    LoadNote(Note),
+    LoadedNote {
+        note: Box<dyn AnyNote>,
+        content: String,
+    },
     SetMode(Mode),
     ToggleMode(),
 }
 
 #[derive(Debug)]
 pub enum NoteContentViewOutput {
-    ContentChanged(String),
+    ContentChanged {
+        note: Box<dyn AnyNote>,
+        content: String,
+    },
 }
 
 #[relm4::component(pub, async)]
@@ -162,25 +168,30 @@ impl AsyncComponent for NoteContentView {
     async fn update(
         &mut self,
         msg: Self::Input,
-        _sender: AsyncComponentSender<NoteContentView>,
+        sender: AsyncComponentSender<NoteContentView>,
         _root: &Self::Root,
     ) {
         match msg {
-            NoteContentViewMsg::ContentChanged(text) => {
-                self.content = Some(text);
-                self.etag = self
-                    .note
-                    .clone()
-                    .unwrap()
-                    .save_content(&self.content.clone().unwrap(), &self.etag)
-                    .await
-                    .map_or_else(
-                        |err| {
-                            println!("error while saving: {}", err);
-                            None
-                        },
-                        |etag| Some(etag),
-                    );
+            NoteContentViewMsg::ContentChanged(content) => {
+                self.content = Some(content.clone());
+                sender.output(NoteContentViewOutput::ContentChanged {
+                    note: self.note.clone().unwrap().clone(),
+                    content,
+                });
+                // self.etag = self
+                //     .note
+                //     .unwrap()
+                //     .clone_box()
+                //     .as_ref()
+                //     .save_content(&self.content.clone().unwrap(), &self.etag)
+                //     .await
+                //     .map_or_else(
+                //         |err| {
+                //             println!("error while saving: {}", err);
+                //             None
+                //         },
+                //         |etag| Some(etag),
+                //     );
             }
             NoteContentViewMsg::SetMode(mode) => {
                 self.set_mode(mode);
@@ -188,15 +199,16 @@ impl AsyncComponent for NoteContentView {
             NoteContentViewMsg::ToggleMode() => {
                 self.set_mode(self.mode.toggled());
             }
-            NoteContentViewMsg::LoadNote(note) => {
-                (self.content, self.etag) = note.load_content().await.map_or_else(
-                    |err| {
-                        println!("error while loading: {}", err);
-                        (None, None)
-                    },
-                    |(content, etag)| (Some(content), etag),
-                );
+            NoteContentViewMsg::LoadedNote { note, content } => {
+                // (self.content, self.etag) = note.load_content().await.map_or_else(
+                //     |err| {
+                //         println!("error while loading: {}", err);
+                //         (None, None)
+                //     },
+                //     |(content, etag)| (Some(content), etag),
+                // );
                 self.note = Some(note);
+                self.content = Some(content);
                 self.mode = Mode::View;
 
                 let content = self.content.clone().unwrap();

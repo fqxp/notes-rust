@@ -1,16 +1,14 @@
-use std::path::PathBuf;
-
-use crate::storage::{Note, NoteStorage};
+use crate::storage::{AnyItem, build_storage_from_url};
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
 
-pub struct NoteListItem {
-    pub note: Note,
+struct NoteListItem {
+    item: Box<dyn AnyItem>,
 }
 
 #[relm4::factory(pub)]
 impl FactoryComponent for NoteListItem {
-    type Init = Note;
+    type Init = Box<dyn AnyItem>;
     type Input = ();
     type Output = ();
     type CommandOutput = ();
@@ -29,7 +27,7 @@ impl FactoryComponent for NoteListItem {
                 set_margin_top: 4,
                 set_margin_bottom: 4,
                 #[watch]
-                set_label: self.note.display_filename().as_str(),
+                set_label: &self.item.name(),
             },
         }
     }
@@ -39,7 +37,7 @@ impl FactoryComponent for NoteListItem {
         _index: &Self::Index,
         _sender: relm4::FactorySender<Self>,
     ) -> Self {
-        Self { note: init }
+        Self { item: init }
     }
 }
 
@@ -49,21 +47,21 @@ pub struct NoteListView {
 }
 
 impl NoteListView {
-    fn find_note_by_index(&self, index: usize) -> Option<Note> {
+    fn find_node_by_index(&self, index: usize) -> Option<Box<dyn AnyItem>> {
         self.note_list
             .get(index)
-            .map(|note_item| note_item.note.clone())
+            .map(|note_list_item| note_list_item.item.clone_box())
     }
 }
 
 #[derive(Debug)]
 pub enum NoteListViewMsg {
-    SelectNote(usize),
+    SelectNode(usize),
 }
 
 #[derive(Debug)]
 pub enum NoteListViewOutput {
-    SelectedNote(Note),
+    SelectedNode(Box<dyn AnyItem>),
 }
 
 #[relm4::component(pub, async)]
@@ -79,7 +77,7 @@ impl AsyncComponent for NoteListView {
             note_list_box -> gtk::ListBox {
                 connect_row_activated[sender] => move |list_box, row| {
                     let index = list_box.index_of_child(row).unwrap() as usize;
-                    sender.input_sender().emit(NoteListViewMsg::SelectNote(index));
+                    sender.input_sender().emit(NoteListViewMsg::SelectNode(index));
                 }
             },
         }
@@ -90,7 +88,7 @@ impl AsyncComponent for NoteListView {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let storage = NoteStorage::new(PathBuf::from("/home/frank/code/notes-rust/sample-notes"));
+        let storage = build_storage_from_url("fs:///home/frank/code/notes-rust/sample-notes");
 
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
@@ -102,8 +100,7 @@ impl AsyncComponent for NoteListView {
         };
 
         let notes = storage
-            .list()
-            .await
+            .list_items()
             .map_or_else(
                 |err| {
                     model.error = Some(err.to_string());
@@ -113,7 +110,7 @@ impl AsyncComponent for NoteListView {
             )
             .unwrap();
 
-        for note in notes.into_iter() {
+        for note in notes {
             model.note_list.guard().push_back(note);
         }
 
@@ -131,10 +128,11 @@ impl AsyncComponent for NoteListView {
         _root: &Self::Root,
     ) {
         match msg {
-            NoteListViewMsg::SelectNote(index) => {
-                let maybe_note = self.find_note_by_index(index);
-                if maybe_note.is_some() {
-                    let _ = sender.output(NoteListViewOutput::SelectedNote(maybe_note.unwrap()));
+            NoteListViewMsg::SelectNode(index) => {
+                let maybe_node: Option<Box<dyn AnyItem>> = self.find_node_by_index(index);
+                if maybe_node.is_some() {
+                    let node = maybe_node.unwrap();
+                    let _ = sender.output(NoteListViewOutput::SelectedNode(node.clone_box()));
                 }
             }
         }

@@ -1,155 +1,374 @@
-use gtk::{
-    gio::{self, FileType, prelude::*},
-    glib,
-};
-use std::{fmt, path::PathBuf, string::FromUtf8Error};
+use std::{any::Any, marker::PhantomData, path::PathBuf, str::FromStr};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Note {
-    pub filename: PathBuf,
-    file: gio::File,
-    is_dir: bool,
+use crate::errors::{ReadError, WriteError};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemKind {
+    Note,
+    Collection,
+    Attachment,
 }
 
-impl Note {
-    pub fn new_from_file(file: gio::File, is_dir: bool) -> Self {
-        let filename = file.path().unwrap();
+pub trait AnyItem: std::fmt::Debug + Any {
+    fn kind(&self) -> ItemKind;
+    fn as_any(&self) -> &dyn Any;
+    fn name(&self) -> String;
+    fn clone_box(&self) -> Box<dyn AnyItem>;
+    fn as_note(&self) -> Option<Box<dyn AnyNote>>;
+    fn as_collection(&self) -> Option<Box<dyn AnyCollection>>;
+    fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>>;
+}
 
+pub trait AnyNote: AnyItem {
+    fn get_content(&self) -> String;
+}
+
+pub trait AnyCollection: AnyItem {}
+
+pub trait AnyAttachment: AnyItem {}
+
+impl Clone for Box<dyn AnyItem> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+impl Clone for Box<dyn AnyNote> {
+    fn clone(&self) -> Self {
+        self.as_note().unwrap()
+    }
+}
+
+impl Clone for Box<dyn AnyCollection> {
+    fn clone(&self) -> Self {
+        self.as_collection().unwrap()
+    }
+}
+
+impl Clone for Box<dyn AnyAttachment> {
+    fn clone(&self) -> Self {
+        self.as_attachment().unwrap()
+    }
+}
+
+// backend marker trait
+pub trait StorageBackend {
+    type NoteMeta: std::fmt::Debug + Clone + 'static;
+    type CollectionMeta: std::fmt::Debug + Clone + 'static;
+    type AttachmentMeta: std::fmt::Debug + Clone + 'static;
+}
+
+// item models
+pub struct Note<S: StorageBackend> {
+    pub name: String,
+    pub content: String,
+    pub meta: S::NoteMeta,
+    _marker: PhantomData<S>,
+}
+
+impl<S: StorageBackend> Note<S> {
+    pub fn new(name: impl Into<String>, meta: S::NoteMeta) -> Self {
         Self {
-            filename,
-            file,
-            is_dir,
+            name: name.into(),
+            content: String::new(),
+            meta,
+            _marker: PhantomData,
         }
     }
 
-    pub fn name(self: &Self) -> String {
-        self.file.basename().unwrap().display().to_string()
-    }
-
-    pub fn display_filename(self: &Self) -> String {
-        let base_filename = self
-            .file
-            .basename()
-            .unwrap()
-            .to_string_lossy()
-            .rsplit("/")
-            .next()
-            .unwrap()
-            .to_string();
-
-        if self.is_dir {
-            return format!("{}/", base_filename);
-        }
-
-        match base_filename.strip_suffix(".md") {
-            Some(name) => name.to_string(),
-            None => base_filename,
-        }
-    }
-
-    pub fn file(self: &Self) -> gio::File {
-        self.file.clone()
-    }
-
-    pub async fn load_content(&self) -> Result<(String, Option<String>), ReadError> {
-        let (content, etag) = self.file.load_contents_future().await?;
-        let etag = etag.and_then(|g_string| Some(g_string.to_string()));
-        println!("load_content etag={:?}", &etag);
-
-        return Result::Ok((String::from_utf8(content.to_vec())?, etag));
-    }
-
-    pub async fn save_content(
-        &self,
-        content: &String,
-        etag: &Option<String>,
-    ) -> Result<String, WriteError> {
-        let (_, etag_after_save) = self
-            .file
-            .replace_contents_future(
-                content.as_bytes().to_vec(),
-                etag.as_deref(),
-                false,
-                gio::FileCreateFlags::NONE,
-            )
-            .await?;
-        println!("save_content etag={:?}", &etag);
-
-        Result::Ok(etag_after_save.to_string())
+    pub fn set_content(&mut self, content: impl Into<String>) {
+        self.content = content.into();
     }
 }
 
-pub enum ReadError {
-    IoError(glib::Error),
-    DecodeError(FromUtf8Error),
-}
+impl<S: StorageBackend + 'static> AnyItem for Note<S>
+where
+    S::NoteMeta: Clone,
+{
+    fn kind(&self) -> ItemKind {
+        ItemKind::Note
+    }
 
-impl fmt::Display for ReadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ReadError::IoError(err) => write!(f, "{}", err.to_string()),
-            ReadError::DecodeError(err) => write!(f, "{}", err.to_string()),
-        }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn clone_box(&self) -> Box<dyn AnyItem> {
+        self.as_note().unwrap()
+    }
+
+    fn as_note(&self) -> Option<Box<dyn AnyNote>> {
+        Some(Box::new(Self {
+            name: self.name.clone(),
+            content: self.content.clone(),
+            meta: self.meta.clone(),
+            _marker: PhantomData,
+        }))
+    }
+
+    fn as_collection(&self) -> Option<Box<dyn AnyCollection>> {
+        None
+    }
+
+    fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
+        None
     }
 }
 
-impl From<glib::Error> for ReadError {
-    fn from(err: glib::Error) -> ReadError {
-        ReadError::IoError(err)
+impl<S: StorageBackend + 'static> AnyNote for Note<S> {
+    fn get_content(&self) -> String {
+        self.content.clone()
     }
 }
 
-impl From<FromUtf8Error> for ReadError {
-    fn from(err: FromUtf8Error) -> ReadError {
-        ReadError::DecodeError(err)
+impl<S: StorageBackend> std::fmt::Debug for Note<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Note<{}>({})", std::any::type_name::<S>(), self.name)
     }
 }
 
-pub enum WriteError {
-    IoError(glib::Error),
+pub struct Collection<S: StorageBackend> {
+    pub name: String,
+    pub meta: S::CollectionMeta,
+    _marker: PhantomData<S>,
 }
 
-impl From<(Vec<u8>, glib::Error)> for WriteError {
-    fn from(err: (Vec<u8>, glib::Error)) -> WriteError {
-        WriteError::IoError(err.1)
-    }
-}
-
-impl fmt::Display for WriteError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            WriteError::IoError(err) => write!(f, "{}", err.to_string()),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct NoteStorage {
-    basedir: gio::File,
-}
-
-impl NoteStorage {
-    pub fn new(basedir: PathBuf) -> Self {
+impl<S: StorageBackend> Collection<S> {
+    pub fn new(name: impl Into<String>, meta: S::CollectionMeta) -> Self {
         Self {
-            basedir: gio::File::for_path(basedir),
+            name: name.into(),
+            meta,
+            _marker: PhantomData,
         }
     }
+}
 
-    pub async fn list(self: Self) -> Result<Vec<Note>, gtk::glib::Error> {
-        let file_infos = self
-            .basedir
-            .enumerate_children_future("", gio::FileQueryInfoFlags::NONE, glib::Priority::DEFAULT)
-            .await?;
+impl<S: StorageBackend + 'static> AnyItem for Collection<S>
+where
+    S::CollectionMeta: Clone,
+{
+    fn kind(&self) -> ItemKind {
+        ItemKind::Collection
+    }
 
-        let result: Vec<Note> = file_infos
-            .map(|file_info| {
-                let file_info = file_info.unwrap();
-                let filename = self.basedir.child(file_info.name());
-                let is_dir = file_info.file_type() == FileType::Directory;
-                Note::new_from_file(filename, is_dir)
-            })
-            .collect();
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
-        Result::Ok(result)
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn clone_box(&self) -> Box<dyn AnyItem> {
+        self.as_collection().unwrap()
+    }
+
+    fn as_note(&self) -> Option<Box<dyn AnyNote>> {
+        None
+    }
+
+    fn as_collection(&self) -> Option<Box<dyn AnyCollection>> {
+        Some(Box::new(Self {
+            name: self.name.clone(),
+            meta: self.meta.clone(),
+            _marker: PhantomData,
+        }))
+    }
+
+    fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
+        None
+    }
+}
+
+impl<S: StorageBackend + 'static> AnyCollection for Collection<S> {}
+
+impl<S: StorageBackend> std::fmt::Debug for Collection<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Collection<{}>({})",
+            std::any::type_name::<S>(),
+            self.name
+        )
+    }
+}
+
+pub struct Attachment<S: StorageBackend> {
+    pub name: String,
+    pub meta: S::AttachmentMeta,
+    _marker: PhantomData<S>,
+}
+
+impl<S: StorageBackend> Attachment<S> {
+    pub fn new(name: impl Into<String>, meta: S::AttachmentMeta) -> Self {
+        Self {
+            name: name.into(),
+            meta,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<S: StorageBackend + 'static> AnyItem for Attachment<S>
+where
+    S::AttachmentMeta: Clone,
+{
+    fn kind(&self) -> ItemKind {
+        ItemKind::Attachment
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn clone_box(&self) -> Box<dyn AnyItem> {
+        self.as_attachment().unwrap()
+    }
+
+    fn as_note(&self) -> Option<Box<dyn AnyNote>> {
+        None
+    }
+
+    fn as_collection(&self) -> Option<Box<dyn AnyCollection>> {
+        None
+    }
+
+    fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
+        Some(Box::new(Self {
+            name: self.name.clone(),
+            meta: self.meta.clone(),
+            _marker: PhantomData,
+        }))
+    }
+}
+
+impl<S: StorageBackend + 'static> AnyAttachment for Attachment<S> {}
+
+impl<S: StorageBackend> std::fmt::Debug for Attachment<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Attachment<{}>({})",
+            std::any::type_name::<S>(),
+            self.name
+        )
+    }
+}
+
+// typed storage
+pub trait TypedItemStorage<S: StorageBackend> {
+    fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError>;
+    fn save_item(&self, item: &dyn AnyItem) -> Result<(), String>;
+    fn build_note(&self, name: &str) -> Note<S>;
+    fn build_collection(&self, name: &str) -> Collection<S>;
+    fn build_attachment(&self, name: &str) -> Attachment<S>;
+    fn save(&self, note: &Note<S>) -> Result<(), String>;
+    fn save_content(&self, note: &Note<S>) -> Result<(), WriteError>;
+}
+
+// type-erased storage
+pub trait ItemStorage {
+    fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError>;
+    fn build_note(&self, name: &str) -> Box<dyn AnyNote>;
+    fn build_collection(&self, name: &str) -> Box<dyn AnyCollection>;
+    fn build_attachment(&self, name: &str) -> Box<dyn AnyAttachment>;
+    fn save(&self, note: &dyn AnyItem) -> Result<(), String>;
+    fn save_content(&self, note: &dyn AnyNote) -> Result<(), WriteError>;
+}
+
+// type-erased wrapper for type storage
+pub struct DynItemStorage<S: StorageBackend> {
+    inner: Box<dyn TypedItemStorage<S>>,
+}
+
+impl<S: StorageBackend + 'static> ItemStorage for DynItemStorage<S> {
+    fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
+        self.inner.list_items()
+    }
+
+    fn build_note(&self, name: &str) -> Box<dyn AnyNote> {
+        Box::new(self.inner.build_note(name))
+    }
+
+    fn build_collection(&self, name: &str) -> Box<dyn AnyCollection> {
+        Box::new(self.inner.build_collection(name))
+    }
+
+    fn build_attachment(&self, name: &str) -> Box<dyn AnyAttachment> {
+        Box::new(self.inner.build_attachment(name))
+    }
+
+    fn save(&self, note: &dyn AnyItem) -> Result<(), String> {
+        todo!()
+    }
+
+    fn save_content(&self, note: &dyn AnyNote) -> Result<(), WriteError> {
+        todo!()
+    }
+}
+
+pub struct FileSystem;
+
+impl StorageBackend for FileSystem {
+    type NoteMeta = PathBuf;
+    type CollectionMeta = PathBuf;
+    type AttachmentMeta = PathBuf;
+}
+
+pub struct FileSystemStorage {
+    pub root: PathBuf,
+}
+
+impl FileSystemStorage {}
+
+impl TypedItemStorage<FileSystem> for FileSystemStorage {
+    fn build_note(&self, name: &str) -> Note<FileSystem> {
+        let path = self.root.join(name);
+        Note::new(name, path)
+    }
+
+    fn build_collection(&self, name: &str) -> Collection<FileSystem> {
+        let path = self.root.join(name);
+        Collection::new(name, path)
+    }
+
+    fn build_attachment(&self, name: &str) -> Attachment<FileSystem> {
+        let path = self.root.join(name);
+        Attachment::new(name, path)
+    }
+
+    fn save(&self, note: &Note<FileSystem>) -> Result<(), String> {
+        println!("Saving FS note: {} = {}", note.name, note.content);
+        Ok(())
+    }
+
+    fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
+        todo!()
+    }
+
+    fn save_item(&self, item: &dyn AnyItem) -> Result<(), String> {
+        todo!()
+    }
+
+    fn save_content(&self, note: &Note<FileSystem>) -> Result<(), WriteError> {
+        todo!()
+    }
+}
+
+pub fn build_storage_from_url(url: &str) -> Box<dyn ItemStorage> {
+    if url.starts_with("file://") {
+        let root = PathBuf::from_str(url.strip_prefix("file://").unwrap()).unwrap();
+        let fs_storage = Box::new(FileSystemStorage { root });
+        Box::new(DynItemStorage { inner: fs_storage })
+    } else {
+        panic!("unknown storage URL {}", url);
     }
 }

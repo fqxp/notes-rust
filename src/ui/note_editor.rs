@@ -12,7 +12,7 @@ pub struct NoteEditor {
 
 #[derive(Debug)]
 pub enum NoteEditorMsg {
-    SetContent(String, PathBuf),
+    SetContent { content: String, name: String },
 }
 
 #[derive(Debug)]
@@ -67,14 +67,14 @@ impl Component for NoteEditor {
 
     fn update(&mut self, msg: Self::Input, _sender: ComponentSender<Self>, _root: &Self::Root) {
         match msg {
-            NoteEditorMsg::SetContent(text, filename) => {
+            NoteEditorMsg::SetContent { content, name } => {
                 self.buffer.block_signal(&self.buffer_changed_signal);
-                self.buffer.set_text(text.as_str());
+                self.buffer.set_text(content.as_str());
                 self.buffer.unblock_signal(&self.buffer_changed_signal);
 
                 self.buffer.set_language(
                     sourceview5::LanguageManager::default()
-                        .guess_language(Some(filename.as_path()), None)
+                        .guess_language(Some(PathBuf::from(name)), None)
                         .as_ref(),
                 );
             }
