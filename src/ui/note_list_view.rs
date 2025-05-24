@@ -1,6 +1,7 @@
-use crate::storage::{AnyItem, build_storage_from_url};
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
+
+use crate::persistence::{build_storage_from_url, models::AnyItem};
 
 struct NoteListItem {
     item: Box<dyn AnyItem>,

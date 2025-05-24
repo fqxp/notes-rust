@@ -1,5 +1,5 @@
 use crate::{
-    storage::{AnyItem, AnyNote},
+    persistence::models::AnyNote,
     ui::{
         note_content_panel::{NoteContentPanel, NoteContentPanelOutput},
         note_editor::NoteEditorOutput,

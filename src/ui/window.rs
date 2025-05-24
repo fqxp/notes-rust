@@ -1,4 +1,4 @@
-use crate::storage::{AnyItem, ItemKind};
+use crate::persistence::models::{AnyItem, ItemKind};
 use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
 use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
 use adw;

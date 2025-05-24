@@ -1,4 +1,4 @@
 pub mod errors;
-pub mod storage;
+pub mod persistence;
 pub mod ui;
 pub mod util;
