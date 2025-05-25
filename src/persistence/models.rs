@@ -24,9 +24,7 @@ pub trait AnyItem: std::fmt::Debug + Any {
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>>;
 }
 
-pub trait AnyNote: AnyItem {
-    fn get_content(&self) -> String;
-}
+pub trait AnyNote: AnyItem {}
 
 pub trait AnyCollection: AnyItem {}
 
@@ -59,23 +57,21 @@ impl Clone for Box<dyn AnyAttachment> {
 // item models
 pub struct Note<S: StorageBackend> {
     pub name: String,
-    pub content: String,
     pub meta: S::NoteMeta,
     _marker: PhantomData<S>,
 }
 
-impl<S: StorageBackend> Note<S> {
+impl<S: StorageBackend + 'static> Note<S> {
+    pub fn from_any(note: &dyn AnyNote) -> Option<&Note<S>> {
+        note.as_any().downcast_ref::<Note<S>>()
+    }
+
     pub fn new(name: impl Into<String>, meta: S::NoteMeta) -> Self {
         Self {
             name: name.into(),
-            content: String::new(),
             meta,
             _marker: PhantomData,
         }
-    }
-
-    pub fn set_content(&mut self, content: impl Into<String>) {
-        self.content = content.into();
     }
 }
 
@@ -102,7 +98,6 @@ where
     fn as_note(&self) -> Option<Box<dyn AnyNote>> {
         Some(Box::new(Self {
             name: self.name.clone(),
-            content: self.content.clone(),
             meta: self.meta.clone(),
             _marker: PhantomData,
         }))
@@ -117,11 +112,7 @@ where
     }
 }
 
-impl<S: StorageBackend + 'static> AnyNote for Note<S> {
-    fn get_content(&self) -> String {
-        self.content.clone()
-    }
-}
+impl<S: StorageBackend + 'static> AnyNote for Note<S> {}
 
 impl<S: StorageBackend> std::fmt::Debug for Note<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -135,7 +126,11 @@ pub struct Collection<S: StorageBackend> {
     _marker: PhantomData<S>,
 }
 
-impl<S: StorageBackend> Collection<S> {
+impl<S: StorageBackend + 'static> Collection<S> {
+    pub fn from_any(collection: &dyn AnyCollection) -> Option<&Collection<S>> {
+        collection.as_any().downcast_ref::<Collection<S>>()
+    }
+
     pub fn new(name: impl Into<String>, meta: S::CollectionMeta) -> Self {
         Self {
             name: name.into(),
@@ -201,7 +196,11 @@ pub struct Attachment<S: StorageBackend> {
     _marker: PhantomData<S>,
 }
 
-impl<S: StorageBackend> Attachment<S> {
+impl<S: StorageBackend + 'static> Attachment<S> {
+    pub fn from_any(attachment: &dyn AnyAttachment) -> Option<&Attachment<S>> {
+        attachment.as_any().downcast_ref::<Attachment<S>>()
+    }
+
     pub fn new(name: impl Into<String>, meta: S::AttachmentMeta) -> Self {
         Self {
             name: name.into(),

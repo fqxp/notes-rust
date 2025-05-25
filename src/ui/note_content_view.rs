@@ -14,6 +14,7 @@ use relm4::{
 };
 
 use super::{
+    note_content_panel::NoteContentPanelMsg,
     note_editor::{NoteEditor, NoteEditorMsg},
     note_web_view::NoteWebViewMsg,
 };
@@ -21,7 +22,6 @@ use super::{
 pub struct NoteContentView {
     note: Option<Box<dyn AnyNote>>,
     content: Option<String>,
-    etag: Option<String>,
     mode: Mode,
     panel: Controller<NoteContentPanel>,
     web_view: Controller<NoteWebView>,
@@ -146,7 +146,6 @@ impl AsyncComponent for NoteContentView {
         let model = NoteContentView {
             note: None,
             content: None,
-            etag: None,
             panel,
             web_view,
             editor,
@@ -174,7 +173,7 @@ impl AsyncComponent for NoteContentView {
         match msg {
             NoteContentViewMsg::ContentChanged(content) => {
                 self.content = Some(content.clone());
-                sender.output(NoteContentViewOutput::ContentChanged {
+                let _ = sender.output(NoteContentViewOutput::ContentChanged {
                     note: self.note.clone().unwrap().clone(),
                     content,
                 });
@@ -195,9 +194,15 @@ impl AsyncComponent for NoteContentView {
             }
             NoteContentViewMsg::SetMode(mode) => {
                 self.set_mode(mode);
+                self.panel
+                    .sender()
+                    .emit(NoteContentPanelMsg::SetMode(self.mode.clone()));
             }
             NoteContentViewMsg::ToggleMode() => {
                 self.set_mode(self.mode.toggled());
+                self.panel
+                    .sender()
+                    .emit(NoteContentPanelMsg::SetMode(self.mode.clone()));
             }
             NoteContentViewMsg::LoadedNote { note, content } => {
                 // (self.content, self.etag) = note.load_content().await.map_or_else(

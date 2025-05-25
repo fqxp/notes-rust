@@ -1,9 +1,11 @@
-use notes::ui::window::App;
+use notes::{persistence::build_storage_from_url, ui::window::App};
 use relm4::RelmApp;
 
 fn main() -> Result<(), ()> {
     let app = RelmApp::new("de.fqxp.notes");
-    app.run_async::<App>(());
+    let storage = build_storage_from_url("fs:///home/frank/code/notes-rust/sample-notes");
+
+    app.run_async::<App>(storage);
 
     Ok(())
 }

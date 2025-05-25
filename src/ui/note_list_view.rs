@@ -1,7 +1,7 @@
 use gtk::prelude::*;
 use relm4::{RelmListBoxExt, prelude::*};
 
-use crate::persistence::{build_storage_from_url, models::AnyItem};
+use crate::persistence::models::AnyItem;
 
 struct NoteListItem {
     item: Box<dyn AnyItem>,
@@ -44,7 +44,6 @@ impl FactoryComponent for NoteListItem {
 
 pub struct NoteListView {
     note_list: FactoryVecDeque<NoteListItem>,
-    error: Option<String>,
 }
 
 impl NoteListView {
@@ -58,6 +57,7 @@ impl NoteListView {
 #[derive(Debug)]
 pub enum NoteListViewMsg {
     SelectNode(usize),
+    UpdatedNoteList(Vec<Box<dyn AnyItem>>),
 }
 
 #[derive(Debug)]
@@ -89,34 +89,13 @@ impl AsyncComponent for NoteListView {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let storage = build_storage_from_url("fs:///home/frank/code/notes-rust/sample-notes");
-
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
             .detach();
 
-        let mut model = Self {
-            note_list,
-            error: None,
-        };
-
-        let notes = storage
-            .list_items()
-            .map_or_else(
-                |err| {
-                    model.error = Some(err.to_string());
-                    None
-                },
-                |result| Some(result),
-            )
-            .unwrap();
-
-        for note in notes {
-            model.note_list.guard().push_back(note);
-        }
+        let model = Self { note_list };
 
         let note_list_box = model.note_list.widget();
-
         let widgets = view_output!();
 
         AsyncComponentParts { model, widgets }
@@ -134,6 +113,12 @@ impl AsyncComponent for NoteListView {
                 if maybe_node.is_some() {
                     let node = maybe_node.unwrap();
                     let _ = sender.output(NoteListViewOutput::SelectedNode(node.clone_box()));
+                }
+            }
+            NoteListViewMsg::UpdatedNoteList(notes) => {
+                self.note_list.guard().clear();
+                for note in notes {
+                    self.note_list.guard().push_back(note);
                 }
             }
         }

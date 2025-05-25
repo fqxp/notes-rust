@@ -1,4 +1,5 @@
-use crate::persistence::models::{AnyItem, ItemKind};
+use crate::persistence::models::{AnyItem, AnyNote, ItemKind};
+use crate::persistence::storage::{ItemStorage, NoteContent};
 use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
 use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
 use adw;
@@ -6,23 +7,50 @@ use gtk::prelude::*;
 use relm4::actions::AccelsPlus;
 use relm4::prelude::*;
 
-use super::note_content_view::ToggleModeAction;
+use super::note_content_view::{NoteContentViewOutput, ToggleModeAction};
+use super::note_list_view::NoteListViewMsg;
 
 pub struct App {
+    storage: Box<dyn ItemStorage>,
     error: Option<String>,
     list_view: AsyncController<NoteListView>,
     content_view: AsyncController<NoteContentView>,
 }
 
+impl App {
+    async fn update_note_list(&self) {
+        let notes = self
+            .storage
+            .as_ref()
+            .list_items()
+            .await
+            .map_or_else(
+                |err| {
+                    panic!("error loading note list {:?}", err.to_string());
+                    // self.model.error = Some(err.to_string());
+                },
+                |result| Some(result),
+            )
+            .unwrap();
+
+        self.list_view
+            .sender()
+            .emit(NoteListViewMsg::UpdatedNoteList(notes));
+    }
+}
+
 #[derive(Debug)]
 pub enum AppMsg {
     SelectedNode(Box<dyn AnyItem>),
-    ContentChanged,
+    ContentChanged {
+        note: Box<dyn AnyNote>,
+        content: String,
+    },
 }
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for App {
-    type Init = ();
+    type Init = Box<dyn ItemStorage + 'static>;
     type Input = AppMsg;
     type Output = ();
     type CommandOutput = ();
@@ -55,12 +83,19 @@ impl AsyncComponent for App {
     }
 
     async fn init(
-        _: Self::Init,
+        storage: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let content_view: AsyncController<NoteContentView> =
-            NoteContentView::builder().launch(()).detach();
+        let content_view: AsyncController<NoteContentView> = NoteContentView::builder()
+            .launch(())
+            .forward(sender.input_sender(), |msg| -> Self::Input {
+                match msg {
+                    NoteContentViewOutput::ContentChanged { note, content } => {
+                        AppMsg::ContentChanged { note, content }
+                    }
+                }
+            });
         let list_view: AsyncController<NoteListView> = NoteListView::builder().launch(()).forward(
             sender.input_sender(),
             |msg| -> Self::Input {
@@ -71,12 +106,15 @@ impl AsyncComponent for App {
         );
 
         let model = App {
+            storage,
             error: None,
             list_view,
             content_view,
         };
 
         let widgets = view_output!();
+
+        model.update_note_list().await;
 
         let app = relm4::main_application();
         app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);
@@ -92,15 +130,32 @@ impl AsyncComponent for App {
     ) {
         match msg {
             AppMsg::SelectedNode(note) => match note.kind() {
-                ItemKind::Note => self.content_view.emit(NoteContentViewMsg::LoadedNote {
-                    note: note.as_note().unwrap(),
-                    content: String::from("hallo"),
-                }),
-
+                ItemKind::Note => {
+                    let note = note.as_note().unwrap();
+                    let result = self.storage.as_ref().load_content(&*note).await;
+                    if let Ok(content) = result {
+                        self.content_view.emit(NoteContentViewMsg::LoadedNote {
+                            note,
+                            content: content.content,
+                        })
+                    } else {
+                        panic!("tried to load content from non-note {:?}", note);
+                    }
+                }
                 _ => {}
             },
-            AppMsg::ContentChanged => {
-                println!("content changed");
+            AppMsg::ContentChanged { note, content } => {
+                let _ = self
+                    .storage
+                    .as_ref()
+                    .save_content(
+                        note.as_ref(),
+                        &NoteContent {
+                            content,
+                            etag: None,
+                        },
+                    )
+                    .await;
             }
         }
     }

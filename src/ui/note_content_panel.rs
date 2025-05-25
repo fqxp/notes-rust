@@ -39,7 +39,7 @@ impl Component for NoteContentPanel {
                 set_active: model.mode == Mode::View,
                 connect_toggled[sender] => move |btn| {
                     if btn.is_active() {
-                        sender.input(NoteContentPanelMsg::SetMode(Mode::View))
+                        let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::View));
                     }
                 },
             },
@@ -49,9 +49,9 @@ impl Component for NoteContentPanel {
                 set_active: model.mode == Mode::Edit,
                 connect_toggled[sender] => move |btn| {
                     if btn.is_active() {
-                        sender.input(NoteContentPanelMsg::SetMode(Mode::Edit))
+                        let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::Edit));
                     }
-                }
+                },
             },
         }
     }
@@ -71,12 +71,11 @@ impl Component for NoteContentPanel {
     fn update(
         &mut self,
         msg: Self::Input,
-        sender: ComponentSender<NoteContentPanel>,
+        _sender: ComponentSender<NoteContentPanel>,
         _root: &Self::Root,
     ) {
         match msg {
             NoteContentPanelMsg::SetMode(mode) => {
-                let _ = sender.output(NoteContentPanelOutput::SetMode(mode.clone()));
                 self.mode = mode;
             }
         }
