@@ -33,7 +33,7 @@ impl Component for NoteEditor {
             set_hexpand: true,
             set_vexpand: true,
             sourceview5::View {
-                 set_buffer: Some(&model.buffer),
+                set_buffer: Some(&model.buffer),
             },
         }
     }

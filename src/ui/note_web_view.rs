@@ -14,6 +14,8 @@ pub enum NoteWebViewMsg {
     ChangeContent(String),
 }
 
+impl NoteWebView {}
+
 #[relm4::component(pub)]
 impl Component for NoteWebView {
     type Init = String;
@@ -25,8 +27,11 @@ impl Component for NoteWebView {
         gtk::ScrolledWindow {
             set_hexpand: true,
             set_vexpand: true,
+            #[name = "web_view"]
             webkit6::WebView {
                 set_vexpand: true,
+                #[track(model.changed(NoteWebView::content()))]
+                grab_focus: (),
                 #[track(model.changed(NoteWebView::content()))]
                 load_html[None]: markdown_to_html(model.get_content()).as_str(),
             },

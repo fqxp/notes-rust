@@ -35,6 +35,7 @@ impl Component for NoteContentPanel {
             #[name="view_toggle_button"]
             gtk::ToggleButton {
                 set_label: "View",
+                set_can_focus: false,
                 #[watch]
                 set_active: model.mode == Mode::View,
                 connect_toggled[sender] => move |btn| {
@@ -45,6 +46,7 @@ impl Component for NoteContentPanel {
             },
             gtk::ToggleButton {
                 set_label: "Edit",
+                set_can_focus: false,
                 #[watch]
                 set_active: model.mode == Mode::Edit,
                 connect_toggled[sender] => move |btn| {
