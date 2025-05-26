@@ -7,11 +7,7 @@ use crate::{
     },
 };
 use gtk::prelude::*;
-use relm4::{
-    Controller,
-    actions::{RelmAction, RelmActionGroup},
-    prelude::*,
-};
+use relm4::{Controller, prelude::*};
 
 use super::{
     note_content_panel::NoteContentPanelMsg,
@@ -32,16 +28,17 @@ impl NoteContentView {
     fn set_mode(&mut self, mode: Mode) {
         self.mode = mode;
 
-        let content = self.content.clone().unwrap();
-        match &self.mode {
-            Mode::Edit => {
-                self.editor.emit(NoteEditorMsg::SetContent {
-                    content,
-                    name: self.note.as_ref().unwrap().name(),
-                });
-            }
-            Mode::View => {
-                self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
+        if let Some(content) = self.content.clone() {
+            match &self.mode {
+                Mode::Edit => {
+                    self.editor.emit(NoteEditorMsg::SetContent {
+                        content,
+                        name: self.note.as_ref().unwrap().name(),
+                    });
+                }
+                Mode::View => {
+                    self.web_view.emit(NoteWebViewMsg::ChangeContent(content));
+                }
             }
         }
     }
@@ -89,8 +86,7 @@ impl AsyncComponent for NoteContentView {
     type CommandOutput = ();
 
     view! {
-        #[root]
-        root = gtk::Box {
+        gtk::Box {
             set_orientation: gtk::Orientation::Vertical,
 
             match &model.content {
@@ -142,7 +138,6 @@ impl AsyncComponent for NoteContentView {
             .forward(sender.input_sender(), |msg| match msg {
                 NoteEditorOutput::ContentChanged(text) => NoteContentViewMsg::ContentChanged(text),
             });
-
         let model = NoteContentView {
             note: None,
             content: None,
@@ -153,13 +148,6 @@ impl AsyncComponent for NoteContentView {
         };
 
         let widgets = view_output!();
-
-        let mut group = RelmActionGroup::<ContentViewActionGroup>::new();
-        let toggle_action: RelmAction<ToggleModeAction> = RelmAction::new_stateless(move |_| {
-            sender.input(NoteContentViewMsg::ToggleMode());
-        });
-        group.add_action(toggle_action);
-        group.register_for_widget(&widgets.root.root().unwrap());
 
         AsyncComponentParts { model, widgets }
     }
@@ -222,6 +210,3 @@ impl AsyncComponent for NoteContentView {
         }
     }
 }
-
-relm4::new_action_group!(pub ContentViewActionGroup, "content-view");
-relm4::new_stateless_action!(pub ToggleModeAction, ContentViewActionGroup, "toggle");

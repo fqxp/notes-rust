@@ -4,11 +4,16 @@ use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
 use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
 use adw;
 use gtk::prelude::*;
-use relm4::actions::AccelsPlus;
-use relm4::prelude::*;
+use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
+use relm4::{main_application, prelude::*};
 
-use super::note_content_view::{NoteContentViewOutput, ToggleModeAction};
+use super::note_content_view::NoteContentViewOutput;
 use super::note_list_view::NoteListViewMsg;
+
+relm4::new_action_group!(pub AppActions, "app");
+relm4::new_stateless_action!(pub QuitAction, AppActions, "quit");
+relm4::new_stateless_action!(pub FocusSearchEntryAction, AppActions, "focus-search-entry");
+relm4::new_stateless_action!(pub ToggleModeAction, AppActions, "toggle");
 
 pub struct App {
     storage: Box<dyn ItemStorage>,
@@ -56,7 +61,7 @@ impl AsyncComponent for App {
     type CommandOutput = ();
 
     view! {
-        #[root]
+        #[name = "root"]
         adw::Window {
             set_title: Some("notes"),
             set_default_width: 600,
@@ -116,8 +121,33 @@ impl AsyncComponent for App {
 
         model.update_note_list().await;
 
-        let app = relm4::main_application();
+        // setup actions
+
+        let mut group = RelmActionGroup::<AppActions>::new();
+        let sender_clone = model.list_view.sender().clone();
+        let focus_search_entry_action: RelmAction<FocusSearchEntryAction> =
+            RelmAction::new_stateless(move |_| {
+                sender_clone.emit(NoteListViewMsg::FocusSearchEntry())
+            });
+        group.add_action(focus_search_entry_action);
+
+        let sender_clone = model.content_view.sender().clone();
+        let toggle_action: RelmAction<ToggleModeAction> = RelmAction::new_stateless(move |_| {
+            sender_clone.emit(NoteContentViewMsg::ToggleMode());
+        });
+        group.add_action(toggle_action);
+
+        let quit_action: RelmAction<QuitAction> = RelmAction::new_stateless(move |_| {
+            main_application().quit();
+        });
+        group.add_action(quit_action);
+
+        group.register_for_widget(&widgets.root);
+
+        let app = main_application();
         app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);
+        app.set_accelerators_for_action::<FocusSearchEntryAction>(&["<Control>K"]);
+        app.set_accelerators_for_action::<QuitAction>(&["<Control>Q"]);
 
         AsyncComponentParts { model, widgets }
     }
