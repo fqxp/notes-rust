@@ -58,6 +58,7 @@ impl NoteListView {
 pub enum NoteListViewMsg {
     SelectNode(usize),
     UpdatedNoteList(Vec<Box<dyn AnyItem>>),
+    FocusSearchEntry(),
 }
 
 #[derive(Debug)]
@@ -73,14 +74,25 @@ impl AsyncComponent for NoteListView {
     type CommandOutput = ();
 
     view! {
-        gtk::ScrolledWindow{
-            #[local_ref]
-            note_list_box -> gtk::ListBox {
-                connect_row_activated[sender] => move |list_box, row| {
-                    let index = list_box.index_of_child(row).unwrap() as usize;
-                    sender.input_sender().emit(NoteListViewMsg::SelectNode(index));
-                }
+        gtk::Box {
+            set_orientation: gtk::Orientation::Vertical,
+            set_vexpand: true,
+
+            #[name = "search_entry"]
+            gtk::Entry {
+                set_placeholder_text: Some("Enter search term"),
+                set_hexpand: true,
             },
+            gtk::ScrolledWindow {
+                set_vexpand: true,
+                #[local_ref]
+                note_list_box -> gtk::ListBox {
+                    connect_row_activated[sender] => move |list_box, row| {
+                        let index = list_box.index_of_child(row).unwrap() as usize;
+                        sender.input_sender().emit(NoteListViewMsg::SelectNode(index));
+                    }
+                },
+            }
         }
     }
 
@@ -92,34 +104,39 @@ impl AsyncComponent for NoteListView {
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
             .detach();
-
         let model = Self { note_list };
-
         let note_list_box = model.note_list.widget();
+
         let widgets = view_output!();
 
         AsyncComponentParts { model, widgets }
     }
 
-    async fn update(
+    async fn update_with_view(
         &mut self,
+        widgets: &mut Self::Widgets,
         msg: Self::Input,
         sender: AsyncComponentSender<Self>,
         _root: &Self::Root,
     ) {
+        use NoteListViewMsg::*;
+
         match msg {
-            NoteListViewMsg::SelectNode(index) => {
+            SelectNode(index) => {
                 let maybe_node: Option<Box<dyn AnyItem>> = self.find_node_by_index(index);
                 if maybe_node.is_some() {
                     let node = maybe_node.unwrap();
                     let _ = sender.output(NoteListViewOutput::SelectedNode(node.clone_box()));
                 }
             }
-            NoteListViewMsg::UpdatedNoteList(notes) => {
+            UpdatedNoteList(notes) => {
                 self.note_list.guard().clear();
                 for note in notes {
                     self.note_list.guard().push_back(note);
                 }
+            }
+            FocusSearchEntry() => {
+                widgets.search_entry.grab_focus();
             }
         }
     }
