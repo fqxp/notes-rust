@@ -44,6 +44,7 @@ impl FactoryComponent for NoteListItem {
 
 pub struct NoteListView {
     note_list: FactoryVecDeque<NoteListItem>,
+    search_term: String,
 }
 
 impl NoteListView {
@@ -59,6 +60,7 @@ pub enum NoteListViewMsg {
     SelectNode(usize),
     UpdatedNoteList(Vec<Box<dyn AnyItem>>),
     FocusSearchEntry(),
+    ChangeSearchTerm(String),
 }
 
 #[derive(Debug)]
@@ -82,6 +84,10 @@ impl AsyncComponent for NoteListView {
             gtk::Entry {
                 set_placeholder_text: Some("Enter search term"),
                 set_hexpand: true,
+                connect_changed[sender] => move |entry| {
+                    let search_term = entry.buffer().text().to_string();
+                    let _ = sender.input(Self::Input::ChangeSearchTerm(search_term));
+                },
             },
             gtk::ScrolledWindow {
                 set_vexpand: true,
@@ -104,7 +110,10 @@ impl AsyncComponent for NoteListView {
         let note_list = FactoryVecDeque::builder()
             .launch(gtk::ListBox::default())
             .detach();
-        let model = Self { note_list };
+        let model = Self {
+            note_list,
+            search_term: String::from(""),
+        };
         let note_list_box = model.note_list.widget();
 
         let widgets = view_output!();
@@ -137,6 +146,9 @@ impl AsyncComponent for NoteListView {
             }
             FocusSearchEntry() => {
                 widgets.search_entry.grab_focus();
+            }
+            ChangeSearchTerm(search_term) => {
+                self.search_term = search_term;
             }
         }
     }
