@@ -1,63 +1,69 @@
-use gtk::prelude::*;
-use relm4::{RelmListBoxExt, prelude::*};
-
 use crate::persistence::models::AnyItem;
+use gtk::prelude::*;
+use relm4::{
+    prelude::*,
+    typed_view::list::{RelmListItem, TypedListView},
+};
 
-struct NoteListItem {
+#[derive(Debug)]
+pub struct NoteListItem {
     item: Box<dyn AnyItem>,
 }
 
-#[relm4::factory(pub)]
-impl FactoryComponent for NoteListItem {
-    type Init = Box<dyn AnyItem>;
-    type Input = ();
-    type Output = ();
-    type CommandOutput = ();
-    type ParentWidget = gtk::ListBox;
+impl NoteListItem {
+    pub fn from_any_item(item: Box<dyn AnyItem>) -> Self {
+        Self { item }
+    }
+}
 
-    view! {
-        #[root]
-        gtk::Box {
-            set_orientation: gtk::Orientation::Horizontal,
-            set_spacing: 10,
-            set_margin_top: 10,
-            set_margin_bottom: 10,
+impl PartialEq for NoteListItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.item.name() == other.item.name()
+    }
+}
 
-            #[name(open_button)]
-            gtk::Label {
-                set_margin_top: 4,
-                set_margin_bottom: 4,
-                #[watch]
-                set_label: &self.item.name(),
-            },
+pub struct NoteListItemWidgets {
+    label: gtk::Label,
+}
+
+impl RelmListItem for NoteListItem {
+    type Root = gtk::Box;
+    type Widgets = NoteListItemWidgets;
+
+    fn setup(_list_item: &gtk::ListItem) -> (Self::Root, Self::Widgets) {
+        relm4::view! {
+            root = gtk::Box {
+                set_orientation: gtk::Orientation::Horizontal,
+                set_spacing: 10,
+                set_margin_top: 10,
+                set_margin_bottom: 10,
+
+                #[name = "label"]
+                gtk::Label {
+                    set_margin_top: 4,
+                    set_margin_bottom: 4,
+                },
+            }
         }
+
+        (root, Self::Widgets { label })
     }
 
-    fn init_model(
-        init: Self::Init,
-        _index: &Self::Index,
-        _sender: relm4::FactorySender<Self>,
-    ) -> Self {
-        Self { item: init }
+    fn bind(&mut self, widgets: &mut Self::Widgets, _root: &mut Self::Root) {
+        widgets.label.set_text(&self.item.name());
     }
 }
 
 pub struct NoteListView {
-    note_list: FactoryVecDeque<NoteListItem>,
+    note_list_view_wrapper: TypedListView<NoteListItem, gtk::SingleSelection>,
     search_term: String,
 }
 
-impl NoteListView {
-    fn find_node_by_index(&self, index: usize) -> Option<Box<dyn AnyItem>> {
-        self.note_list
-            .get(index)
-            .map(|note_list_item| note_list_item.item.clone_box())
-    }
-}
+impl NoteListView {}
 
 #[derive(Debug)]
 pub enum NoteListViewMsg {
-    SelectNode(usize),
+    SelectNode(u32),
     UpdatedNoteList(Vec<Box<dyn AnyItem>>),
     FocusSearchEntry(),
     ChangeSearchTerm(String),
@@ -91,10 +97,10 @@ impl AsyncComponent for NoteListView {
             },
             gtk::ScrolledWindow {
                 set_vexpand: true,
+
                 #[local_ref]
-                note_list_box -> gtk::ListBox {
-                    connect_row_activated[sender] => move |list_box, row| {
-                        let index = list_box.index_of_child(row).unwrap() as usize;
+                note_list_view -> gtk::ListView {
+                    connect_activate[sender] => move |_, index| {
                         sender.input_sender().emit(NoteListViewMsg::SelectNode(index));
                     }
                 },
@@ -107,14 +113,15 @@ impl AsyncComponent for NoteListView {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let note_list = FactoryVecDeque::builder()
-            .launch(gtk::ListBox::default())
-            .detach();
+        let note_list_view_wrapper: TypedListView<NoteListItem, gtk::SingleSelection> =
+            TypedListView::new();
+
         let model = Self {
-            note_list,
+            note_list_view_wrapper,
             search_term: String::from(""),
         };
-        let note_list_box = model.note_list.widget();
+
+        let note_list_view = &model.note_list_view_wrapper.view;
 
         let widgets = view_output!();
 
@@ -132,23 +139,32 @@ impl AsyncComponent for NoteListView {
 
         match msg {
             SelectNode(index) => {
-                let maybe_node: Option<Box<dyn AnyItem>> = self.find_node_by_index(index);
-                if maybe_node.is_some() {
-                    let node = maybe_node.unwrap();
-                    let _ = sender.output(NoteListViewOutput::SelectedNode(node.clone_box()));
+                if let Some(list_item) = self.note_list_view_wrapper.get(index) {
+                    let item: Box<dyn AnyItem> = list_item.borrow().item.clone();
+                    let _ = sender.output(NoteListViewOutput::SelectedNode(item));
                 }
             }
-            UpdatedNoteList(notes) => {
-                self.note_list.guard().clear();
-                for note in notes {
-                    self.note_list.guard().push_back(note);
-                }
+            UpdatedNoteList(items) => {
+                self.note_list_view_wrapper.clear();
+                self.note_list_view_wrapper.extend_from_iter(
+                    items
+                        .iter()
+                        .map(|item| NoteListItem::from_any_item(item.clone())),
+                );
             }
             FocusSearchEntry() => {
                 widgets.search_entry.grab_focus();
             }
             ChangeSearchTerm(search_term) => {
                 self.search_term = search_term;
+                self.note_list_view_wrapper.clear_filters();
+                let search_term_clone = self.search_term.clone();
+                self.note_list_view_wrapper.add_filter(move |item| {
+                    item.item
+                        .name()
+                        .to_lowercase()
+                        .contains(search_term_clone.to_lowercase().as_str())
+                });
             }
         }
     }
