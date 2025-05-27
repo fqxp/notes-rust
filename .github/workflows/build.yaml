@@ -1,0 +1,20 @@
+name: build app
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gtk-rs/gtk4-rs/gtk4:latest # TODO enable minor version tags / pinning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install dependencies
+        run: sudo dnf install -y libsoup gtksourceview5-devel webkitgtk6.0-devel
+      - name: build
+        run: cargo build
+      - name: test
+        run: cargo test
