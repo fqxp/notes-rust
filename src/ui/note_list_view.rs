@@ -1,58 +1,6 @@
-use crate::persistence::models::AnyItem;
+use crate::{persistence::models::AnyItem, ui::note_list_item::NoteListItem};
 use gtk::prelude::*;
-use relm4::{
-    prelude::*,
-    typed_view::list::{RelmListItem, TypedListView},
-};
-
-#[derive(Debug)]
-pub struct NoteListItem {
-    item: Box<dyn AnyItem>,
-}
-
-impl NoteListItem {
-    pub fn from_any_item(item: Box<dyn AnyItem>) -> Self {
-        Self { item }
-    }
-}
-
-impl PartialEq for NoteListItem {
-    fn eq(&self, other: &Self) -> bool {
-        self.item.name() == other.item.name()
-    }
-}
-
-pub struct NoteListItemWidgets {
-    label: gtk::Label,
-}
-
-impl RelmListItem for NoteListItem {
-    type Root = gtk::Box;
-    type Widgets = NoteListItemWidgets;
-
-    fn setup(_list_item: &gtk::ListItem) -> (Self::Root, Self::Widgets) {
-        relm4::view! {
-            root = gtk::Box {
-                set_orientation: gtk::Orientation::Horizontal,
-                set_spacing: 10,
-                set_margin_top: 10,
-                set_margin_bottom: 10,
-
-                #[name = "label"]
-                gtk::Label {
-                    set_margin_top: 4,
-                    set_margin_bottom: 4,
-                },
-            }
-        }
-
-        (root, Self::Widgets { label })
-    }
-
-    fn bind(&mut self, widgets: &mut Self::Widgets, _root: &mut Self::Root) {
-        widgets.label.set_text(&self.item.name());
-    }
-}
+use relm4::{prelude::*, typed_view::list::TypedListView};
 
 pub struct NoteListView {
     note_list_view_wrapper: TypedListView<NoteListItem, gtk::SingleSelection>,
