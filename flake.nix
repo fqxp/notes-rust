@@ -26,6 +26,7 @@
           gtk4
           gtksourceview5
           libadwaita
+          librsvg
           webkitgtk_6_0
         ];
       in

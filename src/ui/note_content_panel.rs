@@ -2,6 +2,7 @@ use gtk::prelude::*;
 use relm4::Component;
 use relm4::prelude::*;
 
+use crate::icon_names;
 use crate::ui::note_content_view::Mode;
 
 pub struct NoteContentPanel {
@@ -34,7 +35,6 @@ impl Component for NoteContentPanel {
 
             #[name="view_toggle_button"]
             gtk::ToggleButton {
-                set_label: "View",
                 set_can_focus: false,
                 #[watch]
                 set_active: model.mode == Mode::View,
@@ -43,9 +43,19 @@ impl Component for NoteContentPanel {
                         let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::View));
                     }
                 },
+
+                gtk::Box {
+                    set_orientation: gtk::Orientation::Horizontal,
+                    set_spacing: 8,
+                    gtk::Image {
+                        set_icon_name: Some(icon_names::DOCUMENT_ONE_PAGE_REGULAR)
+                    },
+                    gtk::Label {
+                        set_label: "View",
+                    }
+                }
             },
             gtk::ToggleButton {
-                set_label: "Edit",
                 set_can_focus: false,
                 #[watch]
                 set_active: model.mode == Mode::Edit,
@@ -54,6 +64,18 @@ impl Component for NoteContentPanel {
                         let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::Edit));
                     }
                 },
+
+                gtk::Box {
+                    set_orientation: gtk::Orientation::Horizontal,
+                    set_spacing: 8,
+                    gtk::Image {
+                        set_icon_name: Some(icon_names::EDIT_REGULAR),
+                        set_margin_end: 4,
+                    },
+                    gtk::Label {
+                        set_label: "Edit",
+                    }
+                }
             },
         }
     }
