@@ -12,7 +12,7 @@ impl NoteListView {}
 #[derive(Debug)]
 pub enum NoteListViewMsg {
     SelectNode(u32),
-    UpdatedNoteList(Vec<Box<dyn AnyItem>>),
+    UpdateNoteList(Vec<Box<dyn AnyItem>>),
     FocusSearchEntry(),
     ChangeSearchTerm(String),
 }
@@ -92,7 +92,7 @@ impl AsyncComponent for NoteListView {
                     let _ = sender.output(NoteListViewOutput::SelectedNode(item));
                 }
             }
-            UpdatedNoteList(items) => {
+            UpdateNoteList(items) => {
                 self.note_list_view_wrapper.clear();
                 self.note_list_view_wrapper.extend_from_iter(
                     items

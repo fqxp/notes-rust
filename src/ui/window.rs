@@ -40,7 +40,7 @@ impl App {
 
         self.list_view
             .sender()
-            .emit(NoteListViewMsg::UpdatedNoteList(notes));
+            .emit(NoteListViewMsg::UpdateNoteList(notes));
     }
 }
 
