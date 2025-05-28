@@ -1,4 +1,9 @@
-use notes::{persistence::build_storage_from_url, ui::window::App};
+mod errors;
+mod persistence;
+mod ui;
+mod util;
+
+use crate::{persistence::build_storage_from_url, ui::window::App};
 use relm4::RelmApp;
 
 fn main() -> Result<(), ()> {
