@@ -1,9 +1,20 @@
-use crate::{persistence::models::AnyItem, ui::note_list_item::NoteListItem};
-use gtk::prelude::*;
-use relm4::{prelude::*, typed_view::list::TypedListView};
+use std::cell::Ref;
+
+use crate::{
+    persistence::models::AnyItem,
+    ui::note_list_item::{NoteListItem, NoteListItemWidgets},
+};
+use gtk::{
+    gio::{self},
+    glib,
+    prelude::*,
+};
+use relm4::prelude::*;
 
 pub struct NoteListView {
-    note_list_view_wrapper: TypedListView<NoteListItem, gtk::SingleSelection>,
+    store: gio::ListStore,
+    list_model: gtk::SingleSelection,
+    filter_list_model: gtk::FilterListModel,
     search_term: String,
 }
 
@@ -46,8 +57,11 @@ impl AsyncComponent for NoteListView {
             gtk::ScrolledWindow {
                 set_vexpand: true,
 
-                #[local_ref]
-                note_list_view -> gtk::ListView {
+                #[name = "list_view"]
+                gtk::ListView {
+                    set_factory: Some(&factory),
+                    set_model: Some(&model.list_model),
+
                     connect_activate[sender] => move |_, index| {
                         sender.input_sender().emit(NoteListViewMsg::SelectNode(index));
                     }
@@ -58,18 +72,50 @@ impl AsyncComponent for NoteListView {
 
     async fn init(
         _: Self::Init,
-        root: Self::Root,
+        _root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let note_list_view_wrapper: TypedListView<NoteListItem, gtk::SingleSelection> =
-            TypedListView::new();
+        let store = gio::ListStore::new::<glib::BoxedAnyObject>();
+        let filter_list_model =
+            gtk::FilterListModel::new(Some(store.clone()), Some(gtk::CustomFilter::new(|_| true)));
+        let list_model = gtk::SingleSelection::new(Some(filter_list_model.clone()));
+        let factory = gtk::SignalListItemFactory::new();
+
+        factory.connect_setup(move |_factory, list_item| {
+            let list_item: &gtk::ListItem = list_item
+                .downcast_ref::<gtk::ListItem>()
+                .expect("Must be a gtk::ListItem");
+
+            let (root, widgets) = NoteListItem::setup(list_item);
+
+            unsafe {
+                root.set_data("widgets", widgets);
+            }
+            list_item.set_child(Some(&root));
+        });
+
+        factory.connect_bind(move |_factory, list_item| {
+            let list_item: &gtk::ListItem = list_item
+                .downcast_ref::<gtk::ListItem>()
+                .expect("Must be a gtk::ListItem");
+            let obj = list_item.item().unwrap();
+            let note_list_item: Ref<NoteListItem> =
+                obj.downcast_ref::<glib::BoxedAnyObject>().unwrap().borrow();
+
+            let root = list_item.child().unwrap();
+            let mut widgets: NoteListItemWidgets = unsafe { root.steal_data("widgets") }.unwrap();
+            note_list_item.bind(&mut widgets);
+            unsafe {
+                root.set_data("widgets", widgets);
+            }
+        });
 
         let model = Self {
-            note_list_view_wrapper,
+            store,
+            filter_list_model,
+            list_model,
             search_term: String::from(""),
         };
-
-        let note_list_view = &model.note_list_view_wrapper.view;
 
         let widgets = view_output!();
 
@@ -87,32 +133,44 @@ impl AsyncComponent for NoteListView {
 
         match msg {
             SelectNode(index) => {
-                if let Some(list_item) = self.note_list_view_wrapper.get(index) {
-                    let item: Box<dyn AnyItem> = list_item.borrow().item.clone();
-                    let _ = sender.output(NoteListViewOutput::SelectedNode(item));
+                if let Some(list_item) = self.store.item(index) {
+                    let item: Ref<NoteListItem> = list_item
+                        .downcast_ref::<glib::BoxedAnyObject>()
+                        .unwrap()
+                        .borrow();
+                    let _ = sender.output(NoteListViewOutput::SelectedNode(item.item.clone()));
                 }
             }
             UpdateNoteList(items) => {
-                self.note_list_view_wrapper.clear();
-                self.note_list_view_wrapper.extend_from_iter(
-                    items
-                        .iter()
-                        .map(|item| NoteListItem::from_any_item(item.clone())),
-                );
+                self.store.remove_all();
+                self.store.extend(items.iter().map(|item| {
+                    glib::BoxedAnyObject::new(NoteListItem::from_any_item(item.clone()))
+                }));
             }
             FocusSearchEntry() => {
                 widgets.search_entry.grab_focus();
             }
             ChangeSearchTerm(search_term) => {
                 self.search_term = search_term;
-                self.note_list_view_wrapper.clear_filters();
+
                 let search_term_clone = self.search_term.clone();
-                self.note_list_view_wrapper.add_filter(move |item| {
-                    item.item
+                let filter = gtk::CustomFilter::new(move |list_item| {
+                    if search_term_clone.len() == 0 {
+                        return true;
+                    }
+
+                    let note_list_item: Ref<NoteListItem> = list_item
+                        .downcast_ref::<glib::BoxedAnyObject>()
+                        .unwrap()
+                        .borrow();
+                    note_list_item
+                        .item
                         .name()
                         .to_lowercase()
                         .contains(search_term_clone.to_lowercase().as_str())
                 });
+
+                self.filter_list_model.set_filter(Some(&filter));
             }
         }
     }
