@@ -1,10 +1,16 @@
 use std::{any::Any, marker::PhantomData};
 
+use gtk::glib::DateTime;
+
+pub trait Meta {
+    fn updated_at(&self) -> DateTime;
+}
+
 // backend marker trait
 pub trait StorageBackend {
-    type NoteMeta: std::fmt::Debug + Clone + 'static;
-    type CollectionMeta: std::fmt::Debug + Clone + 'static;
-    type AttachmentMeta: std::fmt::Debug + Clone + 'static;
+    type NoteMeta: Meta + std::fmt::Debug + Clone + 'static;
+    type CollectionMeta: Meta + std::fmt::Debug + Clone + 'static;
+    type AttachmentMeta: Meta + std::fmt::Debug + Clone + 'static;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +24,7 @@ pub trait AnyItem: std::fmt::Debug + Any {
     fn kind(&self) -> ItemKind;
     fn as_any(&self) -> &dyn Any;
     fn name(&self) -> String;
+    fn updated_at(&self) -> DateTime;
     fn clone_box(&self) -> Box<dyn AnyItem>;
     fn as_note(&self) -> Option<Box<dyn AnyNote>>;
     fn as_collection(&self) -> Option<Box<dyn AnyCollection>>;
@@ -91,6 +98,10 @@ where
         self.name.clone()
     }
 
+    fn updated_at(&self) -> DateTime {
+        self.meta.updated_at()
+    }
+
     fn clone_box(&self) -> Box<dyn AnyItem> {
         self.as_note().unwrap()
     }
@@ -154,6 +165,10 @@ where
 
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn updated_at(&self) -> DateTime {
+        self.meta.updated_at()
     }
 
     fn clone_box(&self) -> Box<dyn AnyItem> {
@@ -224,6 +239,10 @@ where
 
     fn name(&self) -> String {
         self.name.clone()
+    }
+
+    fn updated_at(&self) -> DateTime {
+        self.meta.updated_at()
     }
 
     fn clone_box(&self) -> Box<dyn AnyItem> {

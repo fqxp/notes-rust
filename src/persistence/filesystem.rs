@@ -2,10 +2,12 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use gtk::gio::prelude::*;
+use gtk::glib::DateTime;
 use gtk::{gio, glib};
 
 use crate::errors::{ReadError, WriteError};
 
+use super::models::Meta;
 use super::{
     models::{AnyItem, Attachment, Collection, Note, StorageBackend},
     storage::{NoteContent, TypedItemStorage},
@@ -16,6 +18,13 @@ pub struct Filesystem;
 #[derive(Debug, Clone)]
 pub struct FilesystemMeta {
     file: gio::File,
+    updated_at: DateTime,
+}
+
+impl Meta for FilesystemMeta {
+    fn updated_at(&self) -> DateTime {
+        self.updated_at.clone()
+    }
 }
 
 impl StorageBackend for Filesystem {
@@ -37,7 +46,10 @@ impl FileSystemStorage {
 
     fn filesystem_meta_for_name(&self, name: &str) -> FilesystemMeta {
         let file = self.root.child(name);
-        FilesystemMeta { file }
+        FilesystemMeta {
+            file,
+            updated_at: DateTime::now_local().unwrap(), // this is safe until the year 9999
+        }
     }
 }
 
@@ -58,7 +70,11 @@ impl TypedItemStorage<Filesystem> for FileSystemStorage {
     async fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
         let file_infos = self
             .root
-            .enumerate_children_future("", gio::FileQueryInfoFlags::NONE, glib::Priority::DEFAULT)
+            .enumerate_children_future(
+                "standard::*,time::*",
+                gio::FileQueryInfoFlags::NONE,
+                glib::Priority::DEFAULT,
+            )
             .await?;
 
         let result: Vec<Box<dyn AnyItem>> = file_infos
@@ -69,15 +85,30 @@ impl TypedItemStorage<Filesystem> for FileSystemStorage {
                 match file_info.file_type() {
                     gio::FileType::Regular => Box::new(Note::<Filesystem>::new(
                         file_info.name().to_str().unwrap(),
-                        FilesystemMeta { file },
+                        FilesystemMeta {
+                            file,
+                            updated_at: file_info
+                                .modification_date_time()
+                                .expect("modification time should be set"),
+                        },
                     )) as Box<dyn AnyItem>,
                     gio::FileType::Directory => Box::new(Collection::<Filesystem>::new(
                         file_info.name().to_str().unwrap(),
-                        FilesystemMeta { file },
+                        FilesystemMeta {
+                            file,
+                            updated_at: file_info
+                                .modification_date_time()
+                                .expect("modification time should be set"),
+                        },
                     )) as Box<dyn AnyItem>,
                     _ => Box::new(Attachment::<Filesystem>::new(
                         file_info.name().to_str().unwrap(),
-                        FilesystemMeta { file },
+                        FilesystemMeta {
+                            file,
+                            updated_at: file_info
+                                .modification_date_time()
+                                .expect("modification time should be set"),
+                        },
                     )) as Box<dyn AnyItem>,
                 }
             })
