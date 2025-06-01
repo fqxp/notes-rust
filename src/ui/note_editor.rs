@@ -4,7 +4,6 @@ use gtk::{glib, prelude::*};
 use relm4::{Component, ComponentParts, ComponentSender};
 use sourceview5::prelude::*;
 
-#[tracker::track]
 pub struct NoteEditor {
     buffer: sourceview5::Buffer,
     buffer_changed_signal: glib::SignalHandlerId,
@@ -34,6 +33,11 @@ impl Component for NoteEditor {
             set_vexpand: true,
             sourceview5::View {
                 set_buffer: Some(&model.buffer),
+                set_monospace: true,
+                set_highlight_current_line: true,
+                set_auto_indent: true,
+                set_indent_width: 2,
+                set_indent_on_tab: true,
             },
         }
     }
@@ -57,7 +61,6 @@ impl Component for NoteEditor {
         let model = Self {
             buffer,
             buffer_changed_signal,
-            tracker: 0,
         };
 
         let widgets = view_output!();
