@@ -1,5 +1,7 @@
+use adw::prelude::*;
 use gtk::prelude::*;
 use relm4::Component;
+use relm4::adw;
 use relm4::prelude::*;
 
 use crate::icon_names;
@@ -33,6 +35,7 @@ impl Component for NoteContentPanel {
             set_homogeneous: true,
             add_css_class: "linked",
 
+
             #[name="view_toggle_button"]
             gtk::ToggleButton {
                 set_can_focus: false,
@@ -59,6 +62,7 @@ impl Component for NoteContentPanel {
                 set_can_focus: false,
                 #[watch]
                 set_active: model.mode == Mode::Edit,
+                set_group: Some(&view_toggle_button),
                 connect_toggled[sender] => move |btn| {
                     if btn.is_active() {
                         let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::Edit));

@@ -63,15 +63,17 @@ impl AsyncComponent for App {
     view! {
         #[name = "root"]
         adw::Window {
-            set_title: Some("notes"),
             set_default_width: 600,
             set_default_height: 400,
 
             gtk::Box{
                 set_orientation: gtk::Orientation::Vertical,
-                gtk::Label {
-                    #[watch]
-                    set_label: model.error.as_deref().unwrap_or(""),
+                adw::HeaderBar {
+                    #[wrap(Some)]
+                    set_title_widget = &adw::WindowTitle {
+                        set_title: "notes",
+                    },
+                    set_show_end_title_buttons: false,
                 },
                 gtk::Paned::new(gtk::Orientation::Horizontal) {
                     set_position: 250,
