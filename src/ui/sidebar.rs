@@ -44,14 +44,14 @@ const SORT_OPTIONS: [SortOption; 4] = [
     },
 ];
 
-pub struct NoteListView {
+pub struct Sidebar {
     note_list_store: gio::ListStore,
     note_list_model: gtk::SingleSelection,
     note_filter_list_model: gtk::FilterListModel,
     note_sort_list_model: gtk::SortListModel,
 }
 
-impl NoteListView {
+impl Sidebar {
     fn build_sorter(&self, sort_order: SortOrder) -> impl IsA<gtk::Sorter> {
         gtk::CustomSorter::new(move |lhs, rhs| {
             let lhs_note_list_item: Ref<NoteListItem> =
@@ -106,7 +106,7 @@ impl NoteListView {
 }
 
 #[derive(Debug)]
-pub enum NoteListViewMsg {
+pub enum SidebarMsg {
     SelectNode(u32),
     UpdateNoteList(Vec<Box<dyn AnyItem>>),
     FocusSearchEntry(),
@@ -115,15 +115,15 @@ pub enum NoteListViewMsg {
 }
 
 #[derive(Debug)]
-pub enum NoteListViewOutput {
+pub enum SidebarOutput {
     SelectedNode(Box<dyn AnyItem>),
 }
 
 #[relm4::component(pub, async)]
-impl AsyncComponent for NoteListView {
+impl AsyncComponent for Sidebar {
     type Init = ();
-    type Input = NoteListViewMsg;
-    type Output = NoteListViewOutput;
+    type Input = SidebarMsg;
+    type Output = SidebarOutput;
     type CommandOutput = ();
 
     view! {
@@ -149,7 +149,7 @@ impl AsyncComponent for NoteListView {
                     let sort_option: Ref<SortOption> = obj.downcast_ref::<glib::BoxedAnyObject>().unwrap().borrow();
                     let _ = sender
                         .input_sender()
-                        .emit(NoteListViewMsg::ChangeSorting(sort_option.order.clone()));
+                        .emit(SidebarMsg::ChangeSorting(sort_option.order.clone()));
                 }
             },
             gtk::ScrolledWindow {
@@ -161,7 +161,7 @@ impl AsyncComponent for NoteListView {
                     set_model: Some(&model.note_list_model),
 
                     connect_activate[sender] => move |_, index| {
-                        sender.input_sender().emit(NoteListViewMsg::SelectNode(index));
+                        sender.input_sender().emit(SidebarMsg::SelectNode(index));
                     }
                 },
             }
@@ -231,7 +231,7 @@ impl AsyncComponent for NoteListView {
 
         let widgets = view_output!();
 
-        sender.input(NoteListViewMsg::ChangeSorting(SortOrder::AToZ));
+        sender.input(SidebarMsg::ChangeSorting(SortOrder::AToZ));
 
         AsyncComponentParts { model, widgets }
     }
@@ -243,7 +243,7 @@ impl AsyncComponent for NoteListView {
         sender: AsyncComponentSender<Self>,
         _root: &Self::Root,
     ) {
-        use NoteListViewMsg::*;
+        use SidebarMsg::*;
 
         match msg {
             SelectNode(index) => {
@@ -252,7 +252,7 @@ impl AsyncComponent for NoteListView {
                         .downcast_ref::<glib::BoxedAnyObject>()
                         .unwrap()
                         .borrow();
-                    let _ = sender.output(NoteListViewOutput::SelectedNode(item.item.clone()));
+                    let _ = sender.output(SidebarOutput::SelectedNode(item.item.clone()));
                 }
             }
             UpdateNoteList(items) => {

@@ -1,14 +1,14 @@
 use crate::persistence::models::{AnyItem, AnyNote, ItemKind};
 use crate::persistence::storage::{ItemStorage, NoteContent};
 use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
-use crate::ui::note_list_view::{NoteListView, NoteListViewOutput};
+use crate::ui::sidebar::{Sidebar, SidebarOutput};
 use adw;
 use gtk::prelude::*;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::{main_application, prelude::*};
 
 use super::note_content_view::NoteContentViewOutput;
-use super::note_list_view::NoteListViewMsg;
+use super::sidebar::SidebarMsg;
 
 relm4::new_action_group!(pub AppActions, "app");
 relm4::new_stateless_action!(pub QuitAction, AppActions, "quit");
@@ -18,7 +18,7 @@ relm4::new_stateless_action!(pub ToggleModeAction, AppActions, "toggle");
 pub struct App {
     storage: Box<dyn ItemStorage>,
     error: Option<String>,
-    list_view: AsyncController<NoteListView>,
+    sidebar: AsyncController<Sidebar>,
     content_view: AsyncController<NoteContentView>,
 }
 
@@ -38,9 +38,9 @@ impl App {
             )
             .unwrap();
 
-        self.list_view
+        self.sidebar
             .sender()
-            .emit(NoteListViewMsg::UpdateNoteList(notes));
+            .emit(SidebarMsg::UpdateNoteList(notes));
     }
 }
 
@@ -80,7 +80,7 @@ impl AsyncComponent for App {
                     set_wide_handle: true,
 
                     #[wrap(Some)]
-                    set_start_child = model.list_view.widget() ,
+                    set_start_child = model.sidebar.widget() ,
 
                     #[wrap(Some)]
                     set_end_child = model.content_view.widget(),
@@ -103,19 +103,19 @@ impl AsyncComponent for App {
                     }
                 }
             });
-        let list_view: AsyncController<NoteListView> = NoteListView::builder().launch(()).forward(
-            sender.input_sender(),
-            |msg| -> Self::Input {
-                match msg {
-                    NoteListViewOutput::SelectedNode(note) => AppMsg::SelectedNode(note),
-                }
-            },
-        );
+        let sidebar: AsyncController<Sidebar> =
+            Sidebar::builder()
+                .launch(())
+                .forward(sender.input_sender(), |msg| -> Self::Input {
+                    match msg {
+                        SidebarOutput::SelectedNode(note) => AppMsg::SelectedNode(note),
+                    }
+                });
 
         let model = App {
             storage,
             error: None,
-            list_view,
+            sidebar,
             content_view,
         };
 
@@ -126,11 +126,9 @@ impl AsyncComponent for App {
         // setup actions
 
         let mut group = RelmActionGroup::<AppActions>::new();
-        let sender_clone = model.list_view.sender().clone();
+        let sender_clone = model.sidebar.sender().clone();
         let focus_search_entry_action: RelmAction<FocusSearchEntryAction> =
-            RelmAction::new_stateless(move |_| {
-                sender_clone.emit(NoteListViewMsg::FocusSearchEntry())
-            });
+            RelmAction::new_stateless(move |_| sender_clone.emit(SidebarMsg::FocusSearchEntry()));
         group.add_action(focus_search_entry_action);
 
         let sender_clone = model.content_view.sender().clone();
