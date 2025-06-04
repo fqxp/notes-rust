@@ -47,7 +47,7 @@ pub(super) struct DynItemStorage<S: StorageBackend> {
 }
 
 #[async_trait(?Send)]
-impl<S: StorageBackend + 'static> ItemStorage for DynItemStorage<S> {
+impl<S: StorageBackend + 'static + Send> ItemStorage for DynItemStorage<S> {
     fn build_note(&self, name: &str) -> Box<dyn AnyNote> {
         Box::new(self.inner.build_note(name))
     }
