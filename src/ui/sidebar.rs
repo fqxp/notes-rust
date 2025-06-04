@@ -1,7 +1,7 @@
 use std::cell::Ref;
 
 use crate::{
-    persistence::models::AnyItem,
+    persistence::models::{AnyCollection, AnyItem},
     ui::note_list_item::{NoteListItem, NoteListItemWidgets},
 };
 use gtk::glib::{self};
@@ -10,6 +10,8 @@ use gtk::{
     prelude::*,
 };
 use relm4::prelude::*;
+
+use super::path_select::{PathSelect, PathSelectOutput};
 
 #[derive(Debug, Clone)]
 pub enum SortOrder {
@@ -49,6 +51,7 @@ pub struct Sidebar {
     note_list_model: gtk::SingleSelection,
     note_filter_list_model: gtk::FilterListModel,
     note_sort_list_model: gtk::SortListModel,
+    path_select: Controller<PathSelect>,
 }
 
 impl Sidebar {
@@ -112,6 +115,7 @@ pub enum SidebarMsg {
     FocusSearchEntry(),
     ChangeSearchTerm(String),
     ChangeSorting(SortOrder),
+    SetCollectionPath(Vec<Box<dyn AnyCollection>>),
 }
 
 #[derive(Debug)]
@@ -140,6 +144,8 @@ impl AsyncComponent for Sidebar {
                     let _ = sender.input(Self::Input::ChangeSearchTerm(search_term));
                 },
             },
+
+            #[name = "sort_dropdown"]
             gtk::DropDown{
                 set_model: Some(&sort_options),
                 set_expression: Some(&sort_expression),
@@ -152,6 +158,9 @@ impl AsyncComponent for Sidebar {
                         .emit(SidebarMsg::ChangeSorting(sort_option.order.clone()));
                 }
             },
+
+            append = model.path_select.widget(),
+
             gtk::ScrolledWindow {
                 set_vexpand: true,
 
@@ -212,11 +221,23 @@ impl AsyncComponent for Sidebar {
             gtk::SortListModel::new(Some(note_filter_list_model.clone()), None::<gtk::Sorter>);
         let note_list_model = gtk::SingleSelection::new(Some(note_sort_list_model.clone()));
 
+        let path_select: Controller<PathSelect> =
+            PathSelect::builder()
+                .launch(())
+                .forward(sender.input_sender(), |msg| -> Self::Input {
+                    match msg {
+                        PathSelectOutput::SelectedCollectionPath(collections) => {
+                            SidebarMsg::SetCollectionPath(collections)
+                        }
+                    }
+                });
+
         let model = Self {
             note_list_store,
             note_filter_list_model,
             note_sort_list_model,
             note_list_model,
+            path_select,
         };
 
         let mut sort_options = gio::ListStore::new::<glib::BoxedAnyObject>();
@@ -271,6 +292,9 @@ impl AsyncComponent for Sidebar {
             ChangeSorting(sort_order) => {
                 let sorter = self.build_sorter(sort_order);
                 self.note_sort_list_model.set_sorter(Some(&sorter));
+            }
+            SetCollectionPath(collections) => {
+                println!("set collection path: {:?}", collections);
             }
         }
     }

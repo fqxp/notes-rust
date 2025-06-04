@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use gtk::glib::DateTime;
 
-pub trait Meta {
+pub trait Meta: Send {
     fn updated_at(&self) -> DateTime;
 }
 
@@ -31,11 +31,11 @@ pub trait AnyItem: std::fmt::Debug + Any {
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>>;
 }
 
-pub trait AnyNote: AnyItem {}
+pub trait AnyNote: AnyItem + Send {}
 
-pub trait AnyCollection: AnyItem {}
+pub trait AnyCollection: AnyItem + Send {}
 
-pub trait AnyAttachment: AnyItem {}
+pub trait AnyAttachment: AnyItem + Send {}
 
 impl Clone for Box<dyn AnyItem> {
     fn clone(&self) -> Self {
@@ -68,7 +68,7 @@ pub struct Note<S: StorageBackend> {
     _marker: PhantomData<S>,
 }
 
-impl<S: StorageBackend + 'static> Note<S> {
+impl<S: StorageBackend + 'static + Send> Note<S> {
     pub fn from_any(note: &dyn AnyNote) -> Option<&Note<S>> {
         note.as_any().downcast_ref::<Note<S>>()
     }
@@ -82,7 +82,7 @@ impl<S: StorageBackend + 'static> Note<S> {
     }
 }
 
-impl<S: StorageBackend + 'static> AnyItem for Note<S>
+impl<S: StorageBackend + 'static + Send> AnyItem for Note<S>
 where
     S::NoteMeta: Clone,
 {
@@ -123,7 +123,7 @@ where
     }
 }
 
-impl<S: StorageBackend + 'static> AnyNote for Note<S> {}
+impl<S: StorageBackend + 'static + Send> AnyNote for Note<S> {}
 
 impl<S: StorageBackend> std::fmt::Debug for Note<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -137,7 +137,7 @@ pub struct Collection<S: StorageBackend> {
     _marker: PhantomData<S>,
 }
 
-impl<S: StorageBackend + 'static> Collection<S> {
+impl<S: StorageBackend + 'static + Send> Collection<S> {
     pub fn from_any(collection: &dyn AnyCollection) -> Option<&Collection<S>> {
         collection.as_any().downcast_ref::<Collection<S>>()
     }
@@ -151,7 +151,7 @@ impl<S: StorageBackend + 'static> Collection<S> {
     }
 }
 
-impl<S: StorageBackend + 'static> AnyItem for Collection<S>
+impl<S: StorageBackend + 'static + Send> AnyItem for Collection<S>
 where
     S::CollectionMeta: Clone,
 {
@@ -192,7 +192,7 @@ where
     }
 }
 
-impl<S: StorageBackend + 'static> AnyCollection for Collection<S> {}
+impl<S: StorageBackend + 'static + Send> AnyCollection for Collection<S> {}
 
 impl<S: StorageBackend> std::fmt::Debug for Collection<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -225,7 +225,7 @@ impl<S: StorageBackend + 'static> Attachment<S> {
     }
 }
 
-impl<S: StorageBackend + 'static> AnyItem for Attachment<S>
+impl<S: StorageBackend + 'static + Send> AnyItem for Attachment<S>
 where
     S::AttachmentMeta: Clone,
 {
@@ -266,7 +266,7 @@ where
     }
 }
 
-impl<S: StorageBackend + 'static> AnyAttachment for Attachment<S> {}
+impl<S: StorageBackend + 'static + Send> AnyAttachment for Attachment<S> {}
 
 impl<S: StorageBackend> std::fmt::Debug for Attachment<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
