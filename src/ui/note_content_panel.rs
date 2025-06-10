@@ -1,7 +1,5 @@
-use adw::prelude::*;
 use gtk::prelude::*;
 use relm4::Component;
-use relm4::adw;
 use relm4::prelude::*;
 
 use crate::icon_names;
