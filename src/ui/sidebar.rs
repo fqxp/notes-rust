@@ -1,6 +1,7 @@
 use std::{cell::Ref, convert::identity};
 
 use crate::{
+    icon_names,
     persistence::models::{AnyItem, CollectionPath},
     ui::{
         note_list_item::{NoteListItem, NoteListItemWidgets},
@@ -138,10 +139,24 @@ impl AsyncComponent for Sidebar {
             gtk::Entry {
                 set_placeholder_text: Some("Search (Ctrl-K)"),
                 set_hexpand: true,
+                set_icon_from_icon_name: (
+                    gtk::EntryIconPosition::Primary,
+                    Some(icon_names::SEARCH_REGULAR)
+                ),
+                set_icon_from_icon_name: (
+                    gtk::EntryIconPosition::Secondary,
+                    Some(icon_names::DISMISS_REGULAR)
+                ),
+
                 connect_changed[sender] => move |entry| {
                     let search_term = entry.buffer().text().to_string();
                     let _ = sender.input(Self::Input::ChangeSearchTerm(search_term));
                 },
+                connect_icon_press[sender] => move |_, icon_position|{
+                    if icon_position == gtk::EntryIconPosition::Secondary{
+                        let _ = sender.input(Self::Input::ChangeSearchTerm(String::from("")));
+                    }
+                }
             },
 
             #[name = "sort_dropdown"]

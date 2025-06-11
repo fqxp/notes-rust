@@ -13,9 +13,11 @@ fn main() {
         // List of icons to include
         [
             "edit-regular",
+            "dismiss-regular",
             "document-one-page-regular",
             "image-regular",
             "folder-regular",
+            "search-regular",
         ],
     );
 }
