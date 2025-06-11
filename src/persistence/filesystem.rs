@@ -8,8 +8,9 @@ use gtk::{gio, glib};
 use crate::errors::{ReadError, WriteError};
 
 use super::models::Meta;
+use super::storage::StorageBackend;
 use super::{
-    models::{AnyItem, Attachment, Collection, Note, StorageBackend},
+    models::{AnyItem, Attachment, Collection, Note},
     storage::{NoteContent, TypedItemStorage},
 };
 

@@ -11,6 +11,13 @@ pub struct NoteContent {
     pub etag: Option<String>,
 }
 
+// backend marker trait
+pub trait StorageBackend {
+    type NoteMeta: Meta + std::fmt::Debug + Clone + 'static;
+    type CollectionMeta: Meta + std::fmt::Debug + Clone + 'static;
+    type AttachmentMeta: Meta + std::fmt::Debug + Clone + 'static;
+}
+
 // typed storage
 #[async_trait(?Send)]
 pub trait TypedItemStorage<S: StorageBackend>: Send + Sync {

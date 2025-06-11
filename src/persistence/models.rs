@@ -2,15 +2,10 @@ use std::{any::Any, marker::PhantomData};
 
 use gtk::glib::DateTime;
 
+use super::storage::StorageBackend;
+
 pub trait Meta: Send {
     fn updated_at(&self) -> DateTime;
-}
-
-// backend marker trait
-pub trait StorageBackend {
-    type NoteMeta: Meta + std::fmt::Debug + Clone + 'static;
-    type CollectionMeta: Meta + std::fmt::Debug + Clone + 'static;
-    type AttachmentMeta: Meta + std::fmt::Debug + Clone + 'static;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
