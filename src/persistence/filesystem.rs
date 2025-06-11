@@ -34,11 +34,11 @@ impl StorageBackend for Filesystem {
     type AttachmentMeta = FilesystemMeta;
 }
 
-pub struct FileSystemStorage {
+pub struct FilesystemStorage {
     pub root: gio::File,
 }
 
-impl FileSystemStorage {
+impl FilesystemStorage {
     pub fn new(root: &PathBuf) -> Self {
         Self {
             root: gio::File::for_path(root),
@@ -55,7 +55,6 @@ impl FileSystemStorage {
 }
 
 #[async_trait(?Send)]
-impl TypedItemStorage<Filesystem> for FileSystemStorage {
     fn build_note(&self, name: &str) -> Note<Filesystem> {
         Note::new(name, self.filesystem_meta_for_name(name))
     }
@@ -66,6 +65,7 @@ impl TypedItemStorage<Filesystem> for FileSystemStorage {
 
     fn build_attachment(&self, name: &str) -> Attachment<Filesystem> {
         Attachment::new(name, self.filesystem_meta_for_name(name))
+impl TypedItemStorage<Filesystem> for FilesystemStorage {
     }
 
     async fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
