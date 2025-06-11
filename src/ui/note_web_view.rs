@@ -59,6 +59,8 @@ impl Component for NoteWebView {
         _sender: ComponentSender<NoteWebView>,
         _root: &Self::Root,
     ) {
+        self.reset();
+
         match msg {
             NoteWebViewMsg::ChangeContent(content) => {
                 self.set_content(content);
