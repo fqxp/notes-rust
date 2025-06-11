@@ -8,10 +8,10 @@ use gtk::prelude::*;
 use relm4::{Controller, prelude::*};
 
 use super::{
+    app::AppMsg,
     note_content_panel::NoteContentPanelMsg,
     note_editor::{NoteEditor, NoteEditorMsg},
     note_web_view::NoteWebViewMsg,
-    window::AppMsg,
 };
 
 pub struct NoteContentView {

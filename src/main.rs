@@ -3,7 +3,7 @@ mod persistence;
 mod ui;
 mod util;
 
-use crate::ui::window::App;
+use crate::ui::app::App;
 use relm4::RelmApp;
 
 pub mod icon_names {

@@ -4,7 +4,7 @@ use gtk::{glib, prelude::*};
 use relm4::{Component, ComponentParts, ComponentSender};
 use sourceview5::prelude::*;
 
-use super::window::AppMsg;
+use super::app::AppMsg;
 
 pub struct NoteEditor {
     buffer: sourceview5::Buffer,

@@ -5,7 +5,7 @@ use relm4::prelude::*;
 use crate::icon_names;
 use crate::ui::note_content_view::Mode;
 
-use super::window::AppMsg;
+use super::app::AppMsg;
 
 pub struct NoteContentPanel {
     mode: Mode,

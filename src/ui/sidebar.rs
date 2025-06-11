@@ -14,7 +14,7 @@ use gtk::{
 };
 use relm4::prelude::*;
 
-use super::{path_select::PathSelect, window::AppMsg};
+use super::{app::AppMsg, path_select::PathSelect};
 
 #[derive(Debug, Clone)]
 pub enum SortOrder {

@@ -6,7 +6,7 @@ use crate::{
     ui::path_select_item::{PathSelectItem, PathSelectItemOutput},
 };
 
-use super::window::AppMsg;
+use super::app::AppMsg;
 
 impl From<&FactoryVecDeque<PathSelectItem>> for CollectionPath {
     fn from(path_select_items: &FactoryVecDeque<PathSelectItem>) -> Self {
