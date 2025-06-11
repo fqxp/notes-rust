@@ -17,6 +17,7 @@ relm4::new_action_group!(pub AppActions, "app");
 relm4::new_stateless_action!(pub QuitAction, AppActions, "quit");
 relm4::new_stateless_action!(pub FocusSearchEntryAction, AppActions, "focus-search-entry");
 relm4::new_stateless_action!(pub ToggleModeAction, AppActions, "toggle");
+relm4::new_stateless_action!(pub UpAction, AppActions, "up");
 
 pub struct App {
     storage: Box<dyn ItemStorage>,
@@ -60,6 +61,7 @@ pub enum AppMsg {
     SetMode(Mode),
     ToggleMode(),
     NoteContentChanged(String),
+    Up(),
 }
 
 #[relm4::component(pub, async)]
@@ -140,6 +142,12 @@ impl AsyncComponent for App {
         });
         group.add_action(toggle_action);
 
+        let sender_clone = sender.clone();
+        let up_action: RelmAction<UpAction> = RelmAction::new_stateless(move |_| {
+            sender_clone.input(AppMsg::Up());
+        });
+        group.add_action(up_action);
+
         let quit_action: RelmAction<QuitAction> = RelmAction::new_stateless(move |_| {
             main_application().quit();
         });
@@ -150,6 +158,7 @@ impl AsyncComponent for App {
         let app = main_application();
         app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);
         app.set_accelerators_for_action::<FocusSearchEntryAction>(&["<Control>K"]);
+        app.set_accelerators_for_action::<UpAction>(&["<Control>Up"]);
         app.set_accelerators_for_action::<QuitAction>(&["<Control>Q"]);
 
         sender.input(AppMsg::UpdateItemList());
@@ -169,6 +178,11 @@ impl AsyncComponent for App {
                 self.sidebar
                     .emit(SidebarMsg::SetCollectionPath(self.current_path.clone()));
                 sender.input(AppMsg::UpdateItemList());
+            }
+            AppMsg::Up() => {
+                if let Some(parent) = self.current_path.parent() {
+                    sender.input(AppMsg::SelectedCollectionPath(parent));
+                }
             }
             AppMsg::SelectedItem(item) => match item.kind() {
                 ItemKind::Note => {

@@ -295,9 +295,14 @@ impl CollectionPath {
         self.collections.push(collection);
     }
 
-    // pub fn full_path(&self) -> Vec<Box<dyn AnyCollection>> {
-    //     self.collections.iter().map(|c| c.clone()).collect()
-    // }
+    pub fn parent(&self) -> Option<CollectionPath> {
+        if self.collections.len() > 1 {
+            let (_, rest) = self.collections.split_last().unwrap();
+            Some(Self::new(rest.to_vec()))
+        } else {
+            None
+        }
+    }
 
     pub fn iter(&self) -> Iter<Box<dyn AnyCollection>> {
         self.collections.iter()
