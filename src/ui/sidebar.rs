@@ -212,12 +212,18 @@ impl AsyncComponent for Sidebar {
         });
 
         // note list
-        let note_list_store = gio::ListStore::new::<glib::BoxedAnyObject>();
-        let note_filter_list_model =
-            gtk::FilterListModel::new(Some(note_list_store.clone()), None::<gtk::Filter>);
-        let note_sort_list_model =
-            gtk::SortListModel::new(Some(note_filter_list_model.clone()), None::<gtk::Sorter>);
-        let note_list_model = gtk::SingleSelection::new(Some(note_sort_list_model.clone()));
+        let note_list_store = gio::ListStore::builder()
+            .item_type(glib::BoxedAnyObject::static_type())
+            .build();
+        let note_filter_list_model = gtk::FilterListModel::builder()
+            .model(&note_list_store)
+            .build();
+        let note_sort_list_model = gtk::SortListModel::builder()
+            .model(&note_filter_list_model)
+            .build();
+        let note_list_model = gtk::SingleSelection::builder()
+            .model(&note_sort_list_model)
+            .build();
 
         let path_select: Controller<PathSelect> = PathSelect::builder()
             .launch(collection_path.clone())
