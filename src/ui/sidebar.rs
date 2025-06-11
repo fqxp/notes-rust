@@ -132,10 +132,11 @@ impl AsyncComponent for Sidebar {
         gtk::Box {
             set_orientation: gtk::Orientation::Vertical,
             set_vexpand: true,
+            set_spacing: 4,
 
             #[name = "search_entry"]
             gtk::Entry {
-                set_placeholder_text: Some("Enter search term"),
+                set_placeholder_text: Some("Search (Ctrl-K)"),
                 set_hexpand: true,
                 connect_changed[sender] => move |entry| {
                     let search_term = entry.buffer().text().to_string();

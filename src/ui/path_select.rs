@@ -37,6 +37,7 @@ impl SimpleComponent for PathSelect {
 
     view! {
         root = gtk::Box{
+            set_spacing: 4,
             #[local_ref]
             path_select_box -> gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
