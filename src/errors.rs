@@ -2,11 +2,14 @@ use std::{fmt, string::FromUtf8Error};
 
 use gtk::glib;
 
+pub enum Error {
+    UnknownStorageBackend(String),
+}
+
+#[derive(Debug)]
 pub enum ReadError {
     IoError(glib::Error),
     DecodeError(FromUtf8Error),
-    NotAFile,
-    MismatchedStorageBackend,
 }
 
 impl fmt::Display for ReadError {
@@ -14,8 +17,6 @@ impl fmt::Display for ReadError {
         match self {
             ReadError::IoError(err) => write!(f, "{}", err.to_string()),
             ReadError::DecodeError(err) => write!(f, "{}", err.to_string()),
-            ReadError::NotAFile => write!(f, "not a file"),
-            ReadError::MismatchedStorageBackend => write!(f, "mismatched storage backend"),
         }
     }
 }
@@ -34,8 +35,6 @@ impl From<FromUtf8Error> for ReadError {
 
 pub enum WriteError {
     IoError(glib::Error),
-    NotAFile,
-    MismatchedStorageBackend,
 }
 
 impl From<(Vec<u8>, glib::Error)> for WriteError {
@@ -48,8 +47,6 @@ impl fmt::Display for WriteError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             WriteError::IoError(err) => write!(f, "{}", err.to_string()),
-            WriteError::NotAFile => write!(f, "not a file"),
-            WriteError::MismatchedStorageBackend => write!(f, "mismatched storage backend"),
         }
     }
 }

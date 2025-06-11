@@ -94,7 +94,9 @@ impl AsyncComponent for App {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let storage = build_storage_from_url(storage_url.clone().as_str());
+        let storage = build_storage_from_url(storage_url.clone().as_str())
+            .ok()
+            .unwrap();
         let content_view: AsyncController<NoteContentView> = NoteContentView::builder()
             .launch(())
             .forward(sender.input_sender(), |msg| -> Self::Input {

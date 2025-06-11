@@ -7,12 +7,14 @@ use std::{path::PathBuf, str::FromStr};
 use filesystem::FilesystemStorage;
 use storage::{DynItemStorage, ItemStorage};
 
-pub fn build_storage_from_url(url: &str) -> Box<dyn ItemStorage> {
+use crate::errors::Error;
+
+pub fn build_storage_from_url(url: &str) -> Result<Box<dyn ItemStorage>, Error> {
     if url.starts_with("fs://") {
         let root = PathBuf::from_str(url.strip_prefix("fs://").unwrap()).unwrap();
         let fs_storage = Box::new(FilesystemStorage::new(&root));
-        Box::new(DynItemStorage { inner: fs_storage })
+        Ok(Box::new(DynItemStorage { inner: fs_storage }))
     } else {
-        panic!("unknown storage URL {}", url);
+        Err(Error::UnknownStorageBackend(url.to_owned()))
     }
 }
