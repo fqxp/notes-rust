@@ -166,6 +166,7 @@ impl AsyncComponent for Sidebar {
                 gtk::ListView {
                     set_factory: Some(&factory),
                     set_model: Some(&model.note_list_model),
+                    set_single_click_activate: true,
 
                     connect_activate[sender] => move |_, index| {
                         sender.input_sender().emit(SidebarMsg::SelectedItem(index));
