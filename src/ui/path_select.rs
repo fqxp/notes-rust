@@ -6,13 +6,16 @@ use crate::{
     ui::path_select_item::{PathSelectItem, PathSelectItemOutput},
 };
 
+use super::window::AppMsg;
+
 impl From<&FactoryVecDeque<PathSelectItem>> for CollectionPath {
     fn from(path_select_items: &FactoryVecDeque<PathSelectItem>) -> Self {
-        let mut collection_path = CollectionPath::default();
-        for path_select_item in path_select_items.iter() {
-            collection_path.push(path_select_item.collection.clone());
-        }
-        collection_path
+        CollectionPath::new(
+            path_select_items
+                .iter()
+                .map(|psi| psi.collection.clone())
+                .collect(),
+        )
     }
 }
 
@@ -26,16 +29,11 @@ pub enum PathSelectMsg {
     SelectCollectionAt(DynamicIndex),
 }
 
-#[derive(Debug)]
-pub enum PathSelectOutput {
-    SelectedCollectionPath(CollectionPath),
-}
-
 #[relm4::component(pub)]
 impl SimpleComponent for PathSelect {
     type Init = CollectionPath;
     type Input = PathSelectMsg;
-    type Output = PathSelectOutput;
+    type Output = AppMsg;
 
     view! {
         root = gtk::Box{
@@ -71,10 +69,10 @@ impl SimpleComponent for PathSelect {
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
-            PathSelectMsg::SetCollectionPath(collection_path) => {
+            PathSelectMsg::SetCollectionPath(path) => {
                 let mut guard = self.path_select_items.guard();
                 guard.clear();
-                for collection in collection_path.iter() {
+                for collection in path.iter() {
                     guard.push_back(collection.clone());
                 }
             }
@@ -87,9 +85,9 @@ impl SimpleComponent for PathSelect {
                     }
                 }
 
-                let _ = sender.output(PathSelectOutput::SelectedCollectionPath(
-                    CollectionPath::from(&self.path_select_items),
-                ));
+                let _ = sender.output(AppMsg::SelectedCollectionPath(CollectionPath::from(
+                    &self.path_select_items,
+                )));
             }
         }
     }

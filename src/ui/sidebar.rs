@@ -1,8 +1,11 @@
-use std::cell::Ref;
+use std::{cell::Ref, convert::identity};
 
 use crate::{
-    persistence::models::{AnyCollection, AnyItem},
-    ui::note_list_item::{NoteListItem, NoteListItemWidgets},
+    persistence::models::{AnyItem, CollectionPath},
+    ui::{
+        note_list_item::{NoteListItem, NoteListItemWidgets},
+        path_select::PathSelectMsg,
+    },
 };
 use gtk::glib::{self};
 use gtk::{
@@ -11,7 +14,7 @@ use gtk::{
 };
 use relm4::prelude::*;
 
-use super::path_select::{PathSelect, PathSelectOutput};
+use super::{path_select::PathSelect, window::AppMsg};
 
 #[derive(Debug, Clone)]
 pub enum SortOrder {
@@ -110,24 +113,19 @@ impl Sidebar {
 
 #[derive(Debug)]
 pub enum SidebarMsg {
-    SelectNode(u32),
+    SelectedItem(u32),
     UpdateNoteList(Vec<Box<dyn AnyItem>>),
     FocusSearchEntry(),
     ChangeSearchTerm(String),
     ChangeSorting(SortOrder),
-    SetCollectionPath(Vec<Box<dyn AnyCollection>>),
-}
-
-#[derive(Debug)]
-pub enum SidebarOutput {
-    SelectedNode(Box<dyn AnyItem>),
+    SetCollectionPath(CollectionPath),
 }
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for Sidebar {
-    type Init = ();
+    type Init = CollectionPath;
     type Input = SidebarMsg;
-    type Output = SidebarOutput;
+    type Output = AppMsg;
     type CommandOutput = ();
 
     view! {
@@ -170,7 +168,7 @@ impl AsyncComponent for Sidebar {
                     set_model: Some(&model.note_list_model),
 
                     connect_activate[sender] => move |_, index| {
-                        sender.input_sender().emit(SidebarMsg::SelectNode(index));
+                        sender.input_sender().emit(SidebarMsg::SelectedItem(index));
                     }
                 },
             }
@@ -178,7 +176,7 @@ impl AsyncComponent for Sidebar {
     }
 
     async fn init(
-        _: Self::Init,
+        collection_path: Self::Init,
         _root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
@@ -221,16 +219,9 @@ impl AsyncComponent for Sidebar {
             gtk::SortListModel::new(Some(note_filter_list_model.clone()), None::<gtk::Sorter>);
         let note_list_model = gtk::SingleSelection::new(Some(note_sort_list_model.clone()));
 
-        let path_select: Controller<PathSelect> =
-            PathSelect::builder()
-                .launch(())
-                .forward(sender.input_sender(), |msg| -> Self::Input {
-                    match msg {
-                        PathSelectOutput::SelectedCollectionPath(collections) => {
-                            SidebarMsg::SetCollectionPath(collections)
-                        }
-                    }
-                });
+        let path_select: Controller<PathSelect> = PathSelect::builder()
+            .launch(collection_path.clone())
+            .forward(sender.output_sender(), identity);
 
         let model = Self {
             note_list_store,
@@ -267,13 +258,13 @@ impl AsyncComponent for Sidebar {
         use SidebarMsg::*;
 
         match msg {
-            SelectNode(index) => {
+            SelectedItem(index) => {
                 if let Some(list_item) = self.note_list_model.item(index) {
                     let item: Ref<NoteListItem> = list_item
                         .downcast_ref::<glib::BoxedAnyObject>()
                         .unwrap()
                         .borrow();
-                    let _ = sender.output(SidebarOutput::SelectedNode(item.item.clone()));
+                    let _ = sender.output(AppMsg::SelectedItem(item.item.clone()));
                 }
             }
             UpdateNoteList(items) => {
@@ -293,8 +284,9 @@ impl AsyncComponent for Sidebar {
                 let sorter = self.build_sorter(sort_order);
                 self.note_sort_list_model.set_sorter(Some(&sorter));
             }
-            SetCollectionPath(collections) => {
-                println!("set collection path: {:?}", collections);
+            SetCollectionPath(collection_path) => {
+                self.path_select
+                    .emit(PathSelectMsg::SetCollectionPath(collection_path));
             }
         }
     }

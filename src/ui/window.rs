@@ -1,13 +1,16 @@
-use crate::persistence::models::{AnyItem, AnyNote, ItemKind};
+use std::convert::identity;
+
+use crate::persistence::build_storage_from_url;
+use crate::persistence::models::{AnyItem, AnyNote, CollectionPath, ItemKind};
 use crate::persistence::storage::{ItemStorage, NoteContent};
 use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
-use crate::ui::sidebar::{Sidebar, SidebarOutput};
+use crate::ui::sidebar::Sidebar;
 use adw;
 use gtk::prelude::*;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::{main_application, prelude::*};
 
-use super::note_content_view::NoteContentViewOutput;
+use super::note_content_view::Mode;
 use super::sidebar::SidebarMsg;
 
 relm4::new_action_group!(pub AppActions, "app");
@@ -17,17 +20,18 @@ relm4::new_stateless_action!(pub ToggleModeAction, AppActions, "toggle");
 
 pub struct App {
     storage: Box<dyn ItemStorage>,
-    error: Option<String>,
     sidebar: AsyncController<Sidebar>,
     content_view: AsyncController<NoteContentView>,
+    current_path: CollectionPath,
+    mode: Mode,
 }
 
 impl App {
-    async fn update_note_list(&self) {
+    async fn update_note_list(&self, collection_path: &CollectionPath) {
         let notes = self
             .storage
             .as_ref()
-            .list_items()
+            .list_items(collection_path)
             .await
             .map_or_else(
                 |err| {
@@ -46,16 +50,21 @@ impl App {
 
 #[derive(Debug)]
 pub enum AppMsg {
-    SelectedNode(Box<dyn AnyItem>),
+    SelectedCollectionPath(CollectionPath),
+    SelectedItem(Box<dyn AnyItem>),
     ContentChanged {
         note: Box<dyn AnyNote>,
         content: String,
     },
+    UpdateItemList(),
+    SetMode(Mode),
+    ToggleMode(),
+    NoteContentChanged(String),
 }
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for App {
-    type Init = Box<dyn ItemStorage + 'static>;
+    type Init = String;
     type Input = AppMsg;
     type Output = ();
     type CommandOutput = ();
@@ -97,34 +106,25 @@ impl AsyncComponent for App {
         let storage = build_storage_from_url(storage_url.clone().as_str())
             .ok()
             .unwrap();
+        let current_path =
+            CollectionPath::from(storage.root().await.expect("valid root collection"));
+
         let content_view: AsyncController<NoteContentView> = NoteContentView::builder()
             .launch(())
-            .forward(sender.input_sender(), |msg| -> Self::Input {
-                match msg {
-                    NoteContentViewOutput::ContentChanged { note, content } => {
-                        AppMsg::ContentChanged { note, content }
-                    }
-                }
-            });
-        let sidebar: AsyncController<Sidebar> =
-            Sidebar::builder()
-                .launch(())
-                .forward(sender.input_sender(), |msg| -> Self::Input {
-                    match msg {
-                        SidebarOutput::SelectedNode(note) => AppMsg::SelectedNode(note),
-                    }
-                });
+            .forward(sender.input_sender(), identity);
+        let sidebar: AsyncController<Sidebar> = Sidebar::builder()
+            .launch(current_path.clone())
+            .forward(sender.input_sender(), identity);
 
         let model = App {
             storage,
-            error: None,
             sidebar,
             content_view,
+            current_path,
+            mode: Mode::View,
         };
 
         let widgets = view_output!();
-
-        model.update_note_list().await;
 
         // setup actions
 
@@ -134,9 +134,9 @@ impl AsyncComponent for App {
             RelmAction::new_stateless(move |_| sender_clone.emit(SidebarMsg::FocusSearchEntry()));
         group.add_action(focus_search_entry_action);
 
-        let sender_clone = model.content_view.sender().clone();
+        let sender_clone = sender.clone();
         let toggle_action: RelmAction<ToggleModeAction> = RelmAction::new_stateless(move |_| {
-            sender_clone.emit(NoteContentViewMsg::ToggleMode());
+            sender_clone.input(AppMsg::ToggleMode());
         });
         group.add_action(toggle_action);
 
@@ -152,28 +152,47 @@ impl AsyncComponent for App {
         app.set_accelerators_for_action::<FocusSearchEntryAction>(&["<Control>K"]);
         app.set_accelerators_for_action::<QuitAction>(&["<Control>Q"]);
 
+        sender.input(AppMsg::UpdateItemList());
+
         AsyncComponentParts { model, widgets }
     }
 
     async fn update(
         &mut self,
         msg: Self::Input,
-        _sender: AsyncComponentSender<App>,
+        sender: AsyncComponentSender<App>,
         _root: &Self::Root,
     ) {
         match msg {
-            AppMsg::SelectedNode(note) => match note.kind() {
+            AppMsg::SelectedCollectionPath(collection_path) => {
+                self.current_path = collection_path;
+                self.sidebar
+                    .emit(SidebarMsg::SetCollectionPath(self.current_path.clone()));
+                sender.input(AppMsg::UpdateItemList());
+            }
+            AppMsg::SelectedItem(item) => match item.kind() {
                 ItemKind::Note => {
-                    let note = note.as_note().unwrap();
+                    let note = item.as_note().expect("note");
                     let result = self.storage.as_ref().load_content(&*note).await;
                     if let Ok(content) = result {
                         self.content_view.emit(NoteContentViewMsg::LoadedNote {
                             note,
                             content: content.content,
-                        })
+                        });
                     } else {
-                        panic!("tried to load content from non-note {:?}", note);
+                        panic!(
+                            "tried to load content from non-note {:?}: {:?}",
+                            note,
+                            result.err()
+                        );
                     }
+                }
+                ItemKind::Collection => {
+                    let collection = item.as_collection().expect("collection");
+                    self.current_path.push(collection);
+                    self.sidebar
+                        .emit(SidebarMsg::SetCollectionPath(self.current_path.clone()));
+                    sender.input(AppMsg::UpdateItemList());
                 }
                 _ => {}
             },
@@ -189,6 +208,37 @@ impl AsyncComponent for App {
                         },
                     )
                     .await;
+            }
+            AppMsg::UpdateItemList() => {
+                self.update_note_list(&self.current_path).await;
+            }
+            AppMsg::SetMode(mode) => {
+                self.mode = mode;
+                self.content_view
+                    .emit(NoteContentViewMsg::SetMode(self.mode.clone()));
+            }
+            AppMsg::ToggleMode() => {
+                self.mode = self.mode.toggled();
+                self.content_view
+                    .emit(NoteContentViewMsg::SetMode(self.mode.clone()));
+            }
+            AppMsg::NoteContentChanged(content) => {
+                self.content_view
+                    .emit(NoteContentViewMsg::ContentChanged(content));
+                // self.etag = self
+                //     .note
+                //     .unwrap()
+                //     .clone_box()
+                //     .as_ref()
+                //     .save_content(&self.content.clone().unwrap(), &self.etag)
+                //     .await
+                //     .map_or_else(
+                //         |err| {
+                //             println!("error while saving: {}", err);
+                //             None
+                //         },
+                //         |etag| Some(etag),
+                //     );
             }
         }
     }

@@ -7,14 +7,12 @@ use gtk::{gio, glib};
 
 use crate::errors::{ReadError, WriteError};
 
-use super::models::Meta;
+use super::models::{CollectionPath, Meta};
 use super::storage::StorageBackend;
 use super::{
     models::{AnyItem, Attachment, Collection, Note},
     storage::{NoteContent, TypedItemStorage},
 };
-
-pub struct Filesystem;
 
 #[derive(Debug, Clone)]
 pub struct FilesystemMeta {
@@ -27,6 +25,8 @@ impl Meta for FilesystemMeta {
         self.updated_at.clone()
     }
 }
+
+pub struct Filesystem;
 
 impl StorageBackend for Filesystem {
     type NoteMeta = FilesystemMeta;
@@ -45,32 +45,42 @@ impl FilesystemStorage {
         }
     }
 
-    fn filesystem_meta_for_name(&self, name: &str) -> FilesystemMeta {
-        let file = self.root.child(name);
-        FilesystemMeta {
+    async fn meta_for_root(&self) -> Result<FilesystemMeta, ReadError> {
+        let file = self.root.clone();
+        let file_info = file
+            .query_info_future(
+                "time::*",
+                gio::FileQueryInfoFlags::NONE,
+                glib::Priority::DEFAULT,
+            )
+            .await?;
+
+        Result::Ok(FilesystemMeta {
             file,
-            updated_at: DateTime::now_local().unwrap(), // this is safe until the year 9999
-        }
+            updated_at: file_info
+                .modification_date_time()
+                .expect("valid modification time"),
+        })
     }
 }
 
 #[async_trait(?Send)]
-    fn build_note(&self, name: &str) -> Note<Filesystem> {
-        Note::new(name, self.filesystem_meta_for_name(name))
-    }
-
-    fn build_collection(&self, name: &str) -> Collection<Filesystem> {
-        Collection::new(name, self.filesystem_meta_for_name(name))
-    }
-
-    fn build_attachment(&self, name: &str) -> Attachment<Filesystem> {
-        Attachment::new(name, self.filesystem_meta_for_name(name))
 impl TypedItemStorage<Filesystem> for FilesystemStorage {
+    async fn root(&self) -> Result<Collection<Filesystem>, ReadError> {
+        let collection = self.meta_for_root().await?;
+
+        Result::Ok(Collection::new("/", collection))
     }
 
-    async fn list_items(&self) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
-        let file_infos = self
-            .root
+    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
+        let collection = path
+            .last()
+            .as_any()
+            .downcast_ref::<Collection<Filesystem>>()
+            .unwrap();
+        let dir = &collection.meta.file;
+
+        let file_infos = dir
             .enumerate_children_future(
                 "standard::*,time::*",
                 gio::FileQueryInfoFlags::NONE,
@@ -81,7 +91,7 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
         let result: Vec<Box<dyn AnyItem>> = file_infos
             .map(|file_info| {
                 let file_info = file_info.unwrap();
-                let file = self.root.child(file_info.name());
+                let file = dir.child(file_info.name());
 
                 match file_info.file_type() {
                     gio::FileType::Regular => Box::new(Note::<Filesystem>::new(

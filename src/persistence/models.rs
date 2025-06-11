@@ -1,3 +1,4 @@
+use std::slice::Iter;
 use std::{any::Any, marker::PhantomData};
 
 use gtk::glib::DateTime;
@@ -15,7 +16,7 @@ pub enum ItemKind {
     Attachment,
 }
 
-pub trait AnyItem: std::fmt::Debug + Any {
+pub trait AnyItem: std::fmt::Debug + Any + Send {
     fn kind(&self) -> ItemKind;
     fn as_any(&self) -> &dyn Any;
     fn name(&self) -> String;
@@ -26,11 +27,11 @@ pub trait AnyItem: std::fmt::Debug + Any {
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>>;
 }
 
-pub trait AnyNote: AnyItem + Send {}
+pub trait AnyNote: AnyItem {}
 
-pub trait AnyCollection: AnyItem + Send {}
+pub trait AnyCollection: AnyItem {}
 
-pub trait AnyAttachment: AnyItem + Send {}
+pub trait AnyAttachment: AnyItem {}
 
 impl Clone for Box<dyn AnyItem> {
     fn clone(&self) -> Self {
@@ -271,5 +272,53 @@ impl<S: StorageBackend> std::fmt::Debug for Attachment<S> {
             std::any::type_name::<S>(),
             self.name
         )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CollectionPath {
+    collections: Vec<Box<dyn AnyCollection>>,
+}
+
+impl CollectionPath {
+    pub fn new(collections: Vec<Box<dyn AnyCollection>>) -> Self {
+        if collections.len() == 0 {
+            panic!("need a root collection")
+        }
+
+        CollectionPath { collections }
+    }
+}
+
+impl CollectionPath {
+    pub fn push(&mut self, collection: Box<dyn AnyCollection>) {
+        self.collections.push(collection);
+    }
+
+    // pub fn full_path(&self) -> Vec<Box<dyn AnyCollection>> {
+    //     self.collections.iter().map(|c| c.clone()).collect()
+    // }
+
+    pub fn iter(&self) -> Iter<Box<dyn AnyCollection>> {
+        self.collections.iter()
+    }
+
+    pub fn last(&self) -> &Box<dyn AnyCollection> {
+        self.collections.last().unwrap()
+    }
+}
+
+impl From<Vec<Box<dyn AnyCollection>>> for CollectionPath {
+    fn from(collections: Vec<Box<dyn AnyCollection>>) -> Self {
+        Self { collections }
+    }
+}
+
+impl From<Box<dyn AnyCollection>> for CollectionPath {
+    fn from(collection: Box<dyn AnyCollection>) -> Self {
+        let mut collections = Vec::new();
+        collections.push(collection);
+
+        Self { collections }
     }
 }

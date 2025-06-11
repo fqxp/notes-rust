@@ -1,10 +1,8 @@
+use std::convert::identity;
+
 use crate::{
     persistence::models::AnyNote,
-    ui::{
-        note_content_panel::{NoteContentPanel, NoteContentPanelOutput},
-        note_editor::NoteEditorOutput,
-        note_web_view::NoteWebView,
-    },
+    ui::{note_content_panel::NoteContentPanel, note_web_view::NoteWebView},
 };
 use gtk::prelude::*;
 use relm4::{Controller, prelude::*};
@@ -13,6 +11,7 @@ use super::{
     note_content_panel::NoteContentPanelMsg,
     note_editor::{NoteEditor, NoteEditorMsg},
     note_web_view::NoteWebViewMsg,
+    window::AppMsg,
 };
 
 pub struct NoteContentView {
@@ -51,7 +50,7 @@ pub enum Mode {
 }
 
 impl Mode {
-    fn toggled(&self) -> Mode {
+    pub fn toggled(&self) -> Mode {
         match self {
             Mode::Edit => Mode::View,
             Mode::View => Mode::Edit,
@@ -67,22 +66,13 @@ pub enum NoteContentViewMsg {
         content: String,
     },
     SetMode(Mode),
-    ToggleMode(),
-}
-
-#[derive(Debug)]
-pub enum NoteContentViewOutput {
-    ContentChanged {
-        note: Box<dyn AnyNote>,
-        content: String,
-    },
 }
 
 #[relm4::component(pub, async)]
 impl AsyncComponent for NoteContentView {
     type Init = ();
     type Input = NoteContentViewMsg;
-    type Output = NoteContentViewOutput;
+    type Output = AppMsg;
     type CommandOutput = ();
 
     view! {
@@ -125,19 +115,14 @@ impl AsyncComponent for NoteContentView {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let panel: Controller<NoteContentPanel> = NoteContentPanel::builder().launch(()).forward(
-            sender.input_sender(),
-            |msg| match msg {
-                NoteContentPanelOutput::SetMode(mode) => NoteContentViewMsg::SetMode(mode),
-            },
-        );
+        let panel: Controller<NoteContentPanel> = NoteContentPanel::builder()
+            .launch(())
+            .forward(sender.output_sender(), identity);
         let web_view: Controller<NoteWebView> =
             NoteWebView::builder().launch(String::from("")).detach();
         let editor: Controller<NoteEditor> = NoteEditor::builder()
             .launch(String::from(""))
-            .forward(sender.input_sender(), |msg| match msg {
-                NoteEditorOutput::ContentChanged(text) => NoteContentViewMsg::ContentChanged(text),
-            });
+            .forward(sender.output_sender(), identity);
         let model = NoteContentView {
             note: None,
             content: None,
@@ -161,7 +146,7 @@ impl AsyncComponent for NoteContentView {
         match msg {
             NoteContentViewMsg::ContentChanged(content) => {
                 self.content = Some(content.clone());
-                let _ = sender.output(NoteContentViewOutput::ContentChanged {
+                let _ = sender.output(AppMsg::ContentChanged {
                     note: self.note.clone().unwrap().clone(),
                     content,
                 });
@@ -186,20 +171,7 @@ impl AsyncComponent for NoteContentView {
                     .sender()
                     .emit(NoteContentPanelMsg::SetMode(self.mode.clone()));
             }
-            NoteContentViewMsg::ToggleMode() => {
-                self.set_mode(self.mode.toggled());
-                self.panel
-                    .sender()
-                    .emit(NoteContentPanelMsg::SetMode(self.mode.clone()));
-            }
             NoteContentViewMsg::LoadedNote { note, content } => {
-                // (self.content, self.etag) = note.load_content().await.map_or_else(
-                //     |err| {
-                //         println!("error while loading: {}", err);
-                //         (None, None)
-                //     },
-                //     |(content, etag)| (Some(content), etag),
-                // );
                 self.note = Some(note);
                 self.content = Some(content);
                 self.mode = Mode::View;

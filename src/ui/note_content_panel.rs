@@ -5,6 +5,8 @@ use relm4::prelude::*;
 use crate::icon_names;
 use crate::ui::note_content_view::Mode;
 
+use super::window::AppMsg;
+
 pub struct NoteContentPanel {
     mode: Mode,
 }
@@ -14,16 +16,11 @@ pub enum NoteContentPanelMsg {
     SetMode(Mode),
 }
 
-#[derive(Debug)]
-pub enum NoteContentPanelOutput {
-    SetMode(Mode),
-}
-
 #[relm4::component(pub)]
 impl Component for NoteContentPanel {
     type Init = ();
     type Input = NoteContentPanelMsg;
-    type Output = NoteContentPanelOutput;
+    type Output = AppMsg;
     type CommandOutput = ();
 
     view! {
@@ -41,7 +38,7 @@ impl Component for NoteContentPanel {
                 set_active: model.mode == Mode::View,
                 connect_toggled[sender] => move |btn| {
                     if btn.is_active() {
-                        let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::View));
+                        let _ = sender.output(AppMsg::SetMode(Mode::View));
                     }
                 },
 
@@ -63,7 +60,7 @@ impl Component for NoteContentPanel {
                 set_group: Some(&view_toggle_button),
                 connect_toggled[sender] => move |btn| {
                     if btn.is_active() {
-                        let _ = sender.output(NoteContentPanelOutput::SetMode(Mode::Edit));
+                        let _ = sender.output(AppMsg::SetMode(Mode::Edit));
                     }
                 },
 

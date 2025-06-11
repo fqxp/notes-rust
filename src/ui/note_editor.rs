@@ -4,6 +4,8 @@ use gtk::{glib, prelude::*};
 use relm4::{Component, ComponentParts, ComponentSender};
 use sourceview5::prelude::*;
 
+use super::window::AppMsg;
+
 pub struct NoteEditor {
     buffer: sourceview5::Buffer,
     buffer_changed_signal: glib::SignalHandlerId,
@@ -14,16 +16,11 @@ pub enum NoteEditorMsg {
     SetContent { content: String, name: String },
 }
 
-#[derive(Debug)]
-pub enum NoteEditorOutput {
-    ContentChanged(String),
-}
-
 #[relm4::component(pub)]
 impl Component for NoteEditor {
     type Init = String;
     type Input = NoteEditorMsg;
-    type Output = NoteEditorOutput;
+    type Output = AppMsg;
     type CommandOutput = ();
 
     view! {
@@ -52,10 +49,10 @@ impl Component for NoteEditor {
         let sender_clone = sender.clone();
 
         let buffer_changed_signal = buffer.connect_changed(move |buffer| {
-            let text = buffer
+            let content = buffer
                 .text(&buffer.start_iter(), &buffer.end_iter(), false)
                 .to_string();
-            let _ = sender_clone.output(NoteEditorOutput::ContentChanged(text));
+            let _ = sender_clone.output(AppMsg::NoteContentChanged(content));
         });
 
         let model = Self {
