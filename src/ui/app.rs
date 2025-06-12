@@ -1,5 +1,6 @@
 use std::convert::identity;
 
+use crate::icon_names;
 use crate::persistence::build_storage_from_url;
 use crate::persistence::models::{AnyItem, AnyNote, CollectionPath, ItemKind};
 use crate::persistence::storage::{ItemStorage, NoteContent};
@@ -10,16 +11,19 @@ use gtk::prelude::*;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::{main_application, prelude::*};
 
+use super::about_dialog::{AboutDialog, AboutDialogMsg};
 use super::note_view::Mode;
 use super::sidebar::SidebarMsg;
 
 relm4::new_action_group!(pub AppActions, "app");
-relm4::new_stateless_action!(pub QuitAction, AppActions, "quit");
+relm4::new_stateless_action!(pub AboutAction, AppActions, "about");
 relm4::new_stateless_action!(pub FocusSearchEntryAction, AppActions, "focus-search-entry");
+relm4::new_stateless_action!(pub QuitAction, AppActions, "quit");
 relm4::new_stateless_action!(pub ToggleModeAction, AppActions, "toggle");
 relm4::new_stateless_action!(pub UpAction, AppActions, "up");
 
 pub struct App {
+    about_dialog_controller: Controller<AboutDialog>,
     storage: Box<dyn ItemStorage>,
     sidebar: AsyncController<Sidebar>,
     note_view: AsyncController<NoteView>,
@@ -61,6 +65,7 @@ pub enum AppMsg {
     SetMode(Mode),
     ToggleMode(),
     NoteContentChanged(String),
+    ShowAboutDialog(),
     Up(),
 }
 
@@ -73,7 +78,7 @@ impl AsyncComponent for App {
 
     view! {
         #[name = "root"]
-        adw::Window {
+        adw::ApplicationWindow {
             set_default_width: 600,
             set_default_height: 400,
 
@@ -84,8 +89,13 @@ impl AsyncComponent for App {
                     set_title_widget = &adw::WindowTitle {
                         set_title: "notes",
                     },
-                    set_show_end_title_buttons: false,
+
+                    pack_end = &gtk::MenuButton {
+                        set_icon_name: icon_names::MENU,
+                        set_popover: Some(&gtk::PopoverMenu::from_model(Some(&main_menu))),
+                    },
                 },
+
                 gtk::Paned::new(gtk::Orientation::Horizontal) {
                     set_position: 250,
                     set_wide_handle: true,
@@ -100,11 +110,22 @@ impl AsyncComponent for App {
         }
     }
 
+    menu! {
+        main_menu: {
+            "About" => AboutAction,
+            section! {
+                "Quit" => QuitAction,
+            },
+        }
+    }
+
     async fn init(
         storage_url: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
+        let about_dialog_controller: Controller<AboutDialog> =
+            AboutDialog::builder().launch(()).detach();
         let storage = build_storage_from_url(storage_url.clone().as_str())
             .ok()
             .unwrap();
@@ -119,6 +140,7 @@ impl AsyncComponent for App {
             .forward(sender.input_sender(), identity);
 
         let model = App {
+            about_dialog_controller,
             storage,
             sidebar,
             note_view,
@@ -131,6 +153,13 @@ impl AsyncComponent for App {
         // setup actions
 
         let mut group = RelmActionGroup::<AppActions>::new();
+
+        let sender_clone = sender.clone();
+        let about_action: RelmAction<AboutAction> = RelmAction::new_stateless(move |_| {
+            sender_clone.input(AppMsg::ShowAboutDialog());
+        });
+        group.add_action(about_action);
+
         let sender_clone = model.sidebar.sender().clone();
         let focus_search_entry_action: RelmAction<FocusSearchEntryAction> =
             RelmAction::new_stateless(move |_| sender_clone.emit(SidebarMsg::FocusSearchEntry()));
@@ -156,10 +185,10 @@ impl AsyncComponent for App {
         group.register_for_widget(&widgets.root);
 
         let app = main_application();
-        app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);
         app.set_accelerators_for_action::<FocusSearchEntryAction>(&["<Control>K"]);
-        app.set_accelerators_for_action::<UpAction>(&["<Control>Up"]);
         app.set_accelerators_for_action::<QuitAction>(&["<Control>Q"]);
+        app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);
+        app.set_accelerators_for_action::<UpAction>(&["<Control>Up"]);
 
         sender.input(AppMsg::UpdateItemList());
 
@@ -170,7 +199,7 @@ impl AsyncComponent for App {
         &mut self,
         msg: Self::Input,
         sender: AsyncComponentSender<App>,
-        _root: &Self::Root,
+        root: &Self::Root,
     ) {
         match msg {
             AppMsg::SelectedCollectionPath(collection_path) => {
@@ -229,6 +258,10 @@ impl AsyncComponent for App {
             AppMsg::SetMode(mode) => {
                 self.mode = mode;
                 self.note_view.emit(NoteViewMsg::SetMode(self.mode.clone()));
+            }
+            AppMsg::ShowAboutDialog() => {
+                self.about_dialog_controller
+                    .emit(AboutDialogMsg::Show(root.clone()));
             }
             AppMsg::ToggleMode() => {
                 self.mode = self.mode.toggled();

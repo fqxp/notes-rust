@@ -17,6 +17,7 @@ fn main() {
             "document-one-page-regular",
             "image-regular",
             "folder-regular",
+            "menu",
             "search-regular",
         ],
     );

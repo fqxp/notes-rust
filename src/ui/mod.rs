@@ -1,3 +1,4 @@
+pub mod about_dialog;
 pub mod app;
 pub mod note_editor;
 pub mod note_list_item;
