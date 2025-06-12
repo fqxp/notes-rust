@@ -3,14 +3,14 @@ use std::convert::identity;
 use crate::persistence::build_storage_from_url;
 use crate::persistence::models::{AnyItem, AnyNote, CollectionPath, ItemKind};
 use crate::persistence::storage::{ItemStorage, NoteContent};
-use crate::ui::note_content_view::{NoteContentView, NoteContentViewMsg};
+use crate::ui::note_view::{NoteView, NoteViewMsg};
 use crate::ui::sidebar::Sidebar;
 use adw;
 use gtk::prelude::*;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::{main_application, prelude::*};
 
-use super::note_content_view::Mode;
+use super::note_view::Mode;
 use super::sidebar::SidebarMsg;
 
 relm4::new_action_group!(pub AppActions, "app");
@@ -22,7 +22,7 @@ relm4::new_stateless_action!(pub UpAction, AppActions, "up");
 pub struct App {
     storage: Box<dyn ItemStorage>,
     sidebar: AsyncController<Sidebar>,
-    content_view: AsyncController<NoteContentView>,
+    note_view: AsyncController<NoteView>,
     current_path: CollectionPath,
     mode: Mode,
 }
@@ -94,7 +94,7 @@ impl AsyncComponent for App {
                     set_start_child = model.sidebar.widget() ,
 
                     #[wrap(Some)]
-                    set_end_child = model.content_view.widget(),
+                    set_end_child = model.note_view.widget(),
                 }
             }
         }
@@ -111,7 +111,7 @@ impl AsyncComponent for App {
         let current_path =
             CollectionPath::from(storage.root().await.expect("valid root collection"));
 
-        let content_view: AsyncController<NoteContentView> = NoteContentView::builder()
+        let note_view: AsyncController<NoteView> = NoteView::builder()
             .launch(())
             .forward(sender.input_sender(), identity);
         let sidebar: AsyncController<Sidebar> = Sidebar::builder()
@@ -121,7 +121,7 @@ impl AsyncComponent for App {
         let model = App {
             storage,
             sidebar,
-            content_view,
+            note_view,
             current_path,
             mode: Mode::View,
         };
@@ -189,7 +189,7 @@ impl AsyncComponent for App {
                     let note = item.as_note().expect("note");
                     let result = self.storage.as_ref().load_content(&*note).await;
                     if let Ok(content) = result {
-                        self.content_view.emit(NoteContentViewMsg::LoadedNote {
+                        self.note_view.emit(NoteViewMsg::LoadedNote {
                             note,
                             content: content.content,
                         });
@@ -228,17 +228,14 @@ impl AsyncComponent for App {
             }
             AppMsg::SetMode(mode) => {
                 self.mode = mode;
-                self.content_view
-                    .emit(NoteContentViewMsg::SetMode(self.mode.clone()));
+                self.note_view.emit(NoteViewMsg::SetMode(self.mode.clone()));
             }
             AppMsg::ToggleMode() => {
                 self.mode = self.mode.toggled();
-                self.content_view
-                    .emit(NoteContentViewMsg::SetMode(self.mode.clone()));
+                self.note_view.emit(NoteViewMsg::SetMode(self.mode.clone()));
             }
             AppMsg::NoteContentChanged(content) => {
-                self.content_view
-                    .emit(NoteContentViewMsg::ContentChanged(content));
+                self.note_view.emit(NoteViewMsg::ContentChanged(content));
                 // self.etag = self
                 //     .note
                 //     .unwrap()

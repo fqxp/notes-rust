@@ -3,23 +3,23 @@ use relm4::Component;
 use relm4::prelude::*;
 
 use crate::icon_names;
-use crate::ui::note_content_view::Mode;
+use crate::ui::note_view::Mode;
 
 use super::app::AppMsg;
 
-pub struct NoteContentPanel {
+pub struct NotePanel {
     mode: Mode,
 }
 
 #[derive(Debug)]
-pub enum NoteContentPanelMsg {
+pub enum NotePanelMsg {
     SetMode(Mode),
 }
 
 #[relm4::component(pub)]
-impl Component for NoteContentPanel {
+impl Component for NotePanel {
     type Init = ();
-    type Input = NoteContentPanelMsg;
+    type Input = NotePanelMsg;
     type Output = AppMsg;
     type CommandOutput = ();
 
@@ -84,7 +84,7 @@ impl Component for NoteContentPanel {
         _root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = NoteContentPanel { mode: Mode::View };
+        let model = NotePanel { mode: Mode::View };
 
         let widgets = view_output!();
 
@@ -94,11 +94,11 @@ impl Component for NoteContentPanel {
     fn update(
         &mut self,
         msg: Self::Input,
-        _sender: ComponentSender<NoteContentPanel>,
+        _sender: ComponentSender<NotePanel>,
         _root: &Self::Root,
     ) {
         match msg {
-            NoteContentPanelMsg::SetMode(mode) => {
+            NotePanelMsg::SetMode(mode) => {
                 self.mode = mode;
             }
         }
