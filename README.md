@@ -13,13 +13,15 @@ To run it, use `cargo run`.
   [x] basic note view
   [x] filter note list by title
   [x] change sort order
-  [ ] navigating directory tree
+  [x] navigating directory tree
   [ ] display further info on individual notes (e.g., file name, size on disk, file type)
   [ ] basic attachment view (e.g. images, videos, button for opening with external app)
   [ ] create new notes
   [ ] create new folders
+- settings
+  [ ] extra tab
 - pleasant UI
-  [ ] fixed CSS layout for note view
+  [ ] CSS layout for note view (e.g. thomasf-solarizedcsslight)
   [ ] UI: note list
 - wiki functionality
   [ ] display missing links in red (Mediawiki-like)
