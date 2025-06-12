@@ -46,7 +46,7 @@ impl NoteListItem {
         (root, widgets)
     }
 
-    pub fn bind(&self, widgets: &mut NoteListItemWidgets) {
+    pub fn bind(&self, root: &mut gtk::Widget, widgets: &mut NoteListItemWidgets) {
         widgets.label.set_text(&self.item.name());
 
         let icon_name = match self.item.kind() {
@@ -55,5 +55,17 @@ impl NoteListItem {
             ItemKind::Attachment => icon_names::IMAGE_REGULAR,
         };
         widgets.icon.set_icon_name(Some(icon_name));
+
+        let tooltip_markup = format!(
+            "Last changed {}
+<i>{}</i>",
+            self.item
+                .updated_at()
+                .format_iso8601()
+                .map_or(String::from("unknown"), |gs| gs.to_string())
+                .as_str(),
+            self.item.location(),
+        );
+        root.set_tooltip_markup(Some(tooltip_markup.as_str()));
     }
 }

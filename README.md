@@ -14,7 +14,7 @@ To run it, use `cargo run`.
   [x] filter note list by title
   [x] change sort order
   [x] navigating directory tree
-  [ ] display further info on individual notes (e.g., file name, size on disk, file type)
+  [x] display further info on individual notes (e.g., file name, size on disk, file type)
   [ ] basic attachment view (e.g. images, videos, button for opening with external app)
   [ ] create new notes
   [ ] create new folders

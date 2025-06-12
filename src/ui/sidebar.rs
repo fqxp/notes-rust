@@ -220,9 +220,9 @@ impl AsyncComponent for Sidebar {
             let note_list_item: Ref<NoteListItem> =
                 obj.downcast_ref::<glib::BoxedAnyObject>().unwrap().borrow();
 
-            let root = list_item.child().unwrap();
+            let mut root = list_item.child().unwrap();
             let mut widgets: NoteListItemWidgets = unsafe { root.steal_data("widgets") }.unwrap();
-            note_list_item.bind(&mut widgets);
+            note_list_item.bind(&mut root, &mut widgets);
             unsafe {
                 root.set_data("widgets", widgets);
             }

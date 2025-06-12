@@ -24,6 +24,14 @@ impl Meta for FilesystemMeta {
     fn updated_at(&self) -> DateTime {
         self.updated_at.clone()
     }
+
+    fn location(&self) -> String {
+        self.file
+            .path()
+            .map_or(String::from("no filename"), |pathbuf| {
+                pathbuf.display().to_string()
+            })
+    }
 }
 
 pub struct Filesystem;

@@ -7,6 +7,7 @@ use super::storage::StorageBackend;
 
 pub trait Meta: Send {
     fn updated_at(&self) -> DateTime;
+    fn location(&self) -> String;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +22,7 @@ pub trait AnyItem: std::fmt::Debug + Any + Send {
     fn as_any(&self) -> &dyn Any;
     fn name(&self) -> String;
     fn updated_at(&self) -> DateTime;
+    fn location(&self) -> String;
     fn clone_box(&self) -> Box<dyn AnyItem>;
     fn as_note(&self) -> Option<Box<dyn AnyNote>>;
     fn as_collection(&self) -> Option<Box<dyn AnyCollection>>;
@@ -98,6 +100,10 @@ where
         self.meta.updated_at()
     }
 
+    fn location(&self) -> String {
+        self.meta.location()
+    }
+
     fn clone_box(&self) -> Box<dyn AnyItem> {
         self.as_note().unwrap()
     }
@@ -166,6 +172,10 @@ where
 
     fn updated_at(&self) -> DateTime {
         self.meta.updated_at()
+    }
+
+    fn location(&self) -> String {
+        self.meta.location()
     }
 
     fn clone_box(&self) -> Box<dyn AnyItem> {
@@ -241,6 +251,10 @@ where
 
     fn updated_at(&self) -> DateTime {
         self.meta.updated_at()
+    }
+
+    fn location(&self) -> String {
+        self.meta.location()
     }
 
     fn clone_box(&self) -> Box<dyn AnyItem> {
