@@ -12,8 +12,8 @@ fn main() {
         None::<&str>,
         // List of icons to include
         [
+            "backspace-filled",
             "edit-regular",
-            "dismiss-regular",
             "document-one-page-regular",
             "image-regular",
             "folder-regular",

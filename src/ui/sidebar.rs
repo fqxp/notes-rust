@@ -145,13 +145,13 @@ impl AsyncComponent for Sidebar {
                 ),
                 set_icon_from_icon_name: (
                     gtk::EntryIconPosition::Secondary,
-                    Some(icon_names::DISMISS_REGULAR)
+                    Some(icon_names::BACKSPACE_FILLED)
                 ),
 
                 connect_changed[sender] => move |entry| {
                     let search_term = entry.buffer().text().to_string();
                     let _ = sender.input(Self::Input::ChangeSearchTerm(search_term));
-                },
+                } @change_handler,
                 connect_icon_press[sender] => move |_, icon_position|{
                     if icon_position == gtk::EntryIconPosition::Secondary{
                         let _ = sender.input(Self::Input::ChangeSearchTerm(String::from("")));
@@ -300,6 +300,9 @@ impl AsyncComponent for Sidebar {
                 widgets.search_entry.grab_focus();
             }
             ChangeSearchTerm(search_term) => {
+                widgets.search_entry.block_signal(&widgets.change_handler);
+                widgets.search_entry.buffer().set_text(search_term.clone());
+                widgets.search_entry.unblock_signal(&widgets.change_handler);
                 let filter = self.build_filter(search_term);
                 self.note_filter_list_model.set_filter(Some(&filter));
             }
