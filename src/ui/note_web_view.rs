@@ -27,8 +27,9 @@ impl Component for NoteWebView {
         gtk::ScrolledWindow {
             set_hexpand: true,
             set_vexpand: true,
-            #[name = "web_view"]
-            webkit6::WebView {
+
+            #[local_ref]
+            web_view -> webkit6::WebView {
                 set_vexpand: true,
                 #[track(model.changed(NoteWebView::content()))]
                 grab_focus: (),
@@ -43,6 +44,27 @@ impl Component for NoteWebView {
         _root: Self::Root,
         _sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
+        let web_view = webkit6::WebView::builder().build();
+        let stylesheet = webkit6::UserStyleSheet::new(
+            "
+            body {
+                background-color: #fef1e0;
+                margin: 0 20px 0 20px;
+            }
+            h1, h2, h3, h4, h5, h6 {
+                font-family: serif;
+            }
+            ",
+            webkit6::UserContentInjectedFrames::AllFrames,
+            webkit6::UserStyleLevel::User,
+            &[],
+            &[],
+        );
+        web_view
+            .user_content_manager()
+            .unwrap()
+            .add_style_sheet(&stylesheet);
+
         let model = NoteWebView {
             content,
             tracker: 0,
