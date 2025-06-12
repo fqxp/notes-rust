@@ -3,6 +3,7 @@ use std::{fmt, string::FromUtf8Error};
 use gtk::glib;
 
 pub enum Error {
+    #[allow(dead_code)]
     UnknownStorageBackend(String),
 }
 

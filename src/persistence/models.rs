@@ -134,6 +134,7 @@ pub struct Collection<S: StorageBackend> {
 }
 
 impl<S: StorageBackend + 'static + Send> Collection<S> {
+    #[allow(dead_code)]
     pub fn from_any(collection: &dyn AnyCollection) -> Option<&Collection<S>> {
         collection.as_any().downcast_ref::<Collection<S>>()
     }
@@ -208,6 +209,7 @@ pub struct Attachment<S: StorageBackend> {
 }
 
 impl<S: StorageBackend + 'static> Attachment<S> {
+    #[allow(dead_code)]
     pub fn from_any(attachment: &dyn AnyAttachment) -> Option<&Attachment<S>> {
         attachment.as_any().downcast_ref::<Attachment<S>>()
     }
