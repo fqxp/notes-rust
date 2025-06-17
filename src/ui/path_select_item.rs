@@ -1,5 +1,5 @@
-use gtk::prelude::*;
-use relm4::{FactorySender, prelude::*};
+use gtk::prelude::ButtonExt;
+use relm4::prelude::*;
 
 use crate::persistence::models::AnyCollection;
 
@@ -9,39 +9,39 @@ pub struct PathSelectItem {
 }
 
 #[derive(Debug)]
-pub enum PathSelectItemMsg {}
-
-#[derive(Debug)]
 pub enum PathSelectItemOutput {
-    Selected(DynamicIndex),
+    Selected,
 }
 
-#[relm4::factory(pub)]
-impl FactoryComponent for PathSelectItem {
+#[relm4::component(pub)]
+impl Component for PathSelectItem {
     type Init = Box<dyn AnyCollection>;
-    type Input = PathSelectItemMsg;
+    type Input = ();
     type Output = PathSelectItemOutput;
     type CommandOutput = ();
-    type ParentWidget = gtk::Box;
 
     view! {
-        gtk::Button {
-            set_hexpand: true,
-
+        gtk::LinkButton {
             #[watch]
-            set_label: &self.collection.name(),
+            set_label: &model.collection.name(),
 
-            connect_clicked[sender, index] => move |_| {
-                let _ = sender.output(PathSelectItemOutput::Selected(index.clone()));
+            connect_clicked[sender] => move |_| {
+                let _ = sender.output(PathSelectItemOutput::Selected);
             },
         },
     }
 
-    fn init_model(
+    fn init(
         collection: Self::Init,
-        _index: &Self::Index,
-        _sender: FactorySender<Self>,
-    ) -> Self {
-        Self { collection }
+        root: Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
+        let model = Self {
+            collection: collection.clone(),
+        };
+
+        let widgets = view_output!();
+
+        ComponentParts { model, widgets }
     }
 }

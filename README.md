@@ -27,7 +27,7 @@ To develop a note-taking tool that:
   [x] About dialog
   [ ] proper error reporting
   [ ] basic attachment view (e.g. images, videos, button for opening with external app)
-  [ ] breadcrumbs for current folder widget
+  [x] breadcrumbs for current folder widget
   [ ] create new notes
   [ ] create new folders
   [ ] add new "notebook" (naming?)

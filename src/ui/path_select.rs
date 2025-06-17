@@ -1,94 +1,87 @@
-use gtk::prelude::*;
-use relm4::{ComponentParts, ComponentSender, SimpleComponent, prelude::*};
+use adw::prelude::*;
+use relm4::{ComponentParts, ComponentSender, prelude::*};
 
-use crate::{
-    persistence::models::CollectionPath,
-    ui::path_select_item::{PathSelectItem, PathSelectItemOutput},
+use crate::persistence::models::{AnyCollection, CollectionPath};
+
+use super::{
+    app::AppMsg,
+    path_select_item::{PathSelectItem, PathSelectItemOutput},
 };
 
-use super::app::AppMsg;
-
-impl From<&FactoryVecDeque<PathSelectItem>> for CollectionPath {
-    fn from(path_select_items: &FactoryVecDeque<PathSelectItem>) -> Self {
-        CollectionPath::new(
-            path_select_items
-                .iter()
-                .map(|psi| psi.collection.clone())
-                .collect(),
-        )
-    }
-}
-
 pub struct PathSelect {
-    path_select_items: FactoryVecDeque<PathSelectItem>,
+    path: CollectionPath,
 }
 
 #[derive(Debug)]
 pub enum PathSelectMsg {
     SetCollectionPath(CollectionPath),
-    SelectCollectionAt(DynamicIndex),
 }
 
 #[relm4::component(pub)]
-impl SimpleComponent for PathSelect {
+impl Component for PathSelect {
     type Init = CollectionPath;
     type Input = PathSelectMsg;
     type Output = AppMsg;
+    type CommandOutput = ();
 
     view! {
-        root = gtk::Box{
+        root = gtk::Box {
             set_spacing: 4,
-            #[local_ref]
-            path_select_box -> gtk::Box {
-                set_orientation: gtk::Orientation::Vertical,
-                set_spacing: 4,
-            }
+
+            #[name = "path_box"]
+            adw::WrapBox {
+
+            },
         }
     }
 
     fn init(
-        collection_path: Self::Init,
+        path: Self::Init,
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let path_select_items = FactoryVecDeque::builder()
-            .launch(gtk::Box::default())
-            .forward(sender.input_sender(), |output| match output {
-                PathSelectItemOutput::Selected(index) => PathSelectMsg::SelectCollectionAt(index),
-            });
-
-        let model = PathSelect { path_select_items };
-
-        let path_select_box = model.path_select_items.widget();
+        let model = PathSelect { path };
 
         let widgets = view_output!();
 
-        sender.input(PathSelectMsg::SetCollectionPath(collection_path.clone()));
+        sender.input(PathSelectMsg::SetCollectionPath(model.path.clone()));
 
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: ComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
         match message {
             PathSelectMsg::SetCollectionPath(path) => {
-                let mut guard = self.path_select_items.guard();
-                guard.clear();
-                for collection in path.iter() {
-                    guard.push_back(collection.clone());
+                while let Some(child) = widgets.path_box.last_child() {
+                    widgets.path_box.remove(&child);
                 }
-            }
 
-            PathSelectMsg::SelectCollectionAt(index) => {
-                {
-                    let mut guard = self.path_select_items.guard();
-                    while index.current_index() < guard.len() - 1 {
-                        guard.pop_back();
+                let mut collections_so_far: Vec<Box<dyn AnyCollection>> = vec![];
+                for (i, collection) in path.iter().enumerate() {
+                    if i > 0 {
+                        widgets
+                            .path_box
+                            .append(&gtk::Label::builder().label("→").build());
                     }
-                }
 
-                let _ = sender.output(AppMsg::SelectedCollectionPath(CollectionPath::from(
-                    &self.path_select_items,
-                )));
+                    collections_so_far.push(collection.clone());
+                    let collection_path = CollectionPath::from(collections_so_far.clone());
+
+                    let path_select_item = PathSelectItem::builder()
+                        .launch(collection.clone())
+                        .forward(sender.output_sender(), move |msg| match msg {
+                            PathSelectItemOutput::Selected => {
+                                AppMsg::SelectedCollectionPath(collection_path.clone())
+                            }
+                        });
+                    widgets.path_box.append(path_select_item.widget());
+                }
             }
         }
     }

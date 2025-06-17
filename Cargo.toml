@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 async-trait = "0.1.88"
 gtk = { version = "0.9.6", package = "gtk4", features = ["v4_16"] }
-adw = { version = "0.7.2", package = "libadwaita", features = ["v1_5"]}
+adw = { version = "0.7.2", package = "libadwaita", features = ["v1_5","v1_7"]}
 markdown = "1.0.0"
 relm4 = { version = "0.9.1", features = ["libadwaita"] }
 relm4-components = "0.9.1"

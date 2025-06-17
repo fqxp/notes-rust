@@ -29,6 +29,12 @@ pub trait AnyItem: std::fmt::Debug + Any + Send {
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>>;
 }
 
+impl PartialEq for &dyn AnyItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.location() == other.location()
+    }
+}
+
 pub trait AnyNote: AnyItem {}
 
 pub trait AnyCollection: AnyItem {}
@@ -56,6 +62,24 @@ impl Clone for Box<dyn AnyCollection> {
 impl Clone for Box<dyn AnyAttachment> {
     fn clone(&self) -> Self {
         self.as_attachment().unwrap()
+    }
+}
+
+impl PartialEq for Box<dyn AnyNote> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl PartialEq for Box<dyn AnyCollection> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl PartialEq for Box<dyn AnyAttachment> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
     }
 }
 
@@ -304,9 +328,7 @@ impl CollectionPath {
 
         CollectionPath { collections }
     }
-}
 
-impl CollectionPath {
     pub fn push(&mut self, collection: Box<dyn AnyCollection>) {
         self.collections.push(collection);
     }
@@ -329,6 +351,19 @@ impl CollectionPath {
     }
 }
 
+impl PartialEq for CollectionPath {
+    fn eq(&self, other: &Self) -> bool {
+        if self.collections.len() != other.collections.len() {
+            return false;
+        }
+
+        self.collections
+            .iter()
+            .zip(other.collections.iter())
+            .all(|(lhs, rhs)| lhs == rhs)
+    }
+}
+
 impl From<Vec<Box<dyn AnyCollection>>> for CollectionPath {
     fn from(collections: Vec<Box<dyn AnyCollection>>) -> Self {
         Self { collections }
@@ -341,5 +376,103 @@ impl From<Box<dyn AnyCollection>> for CollectionPath {
         collections.push(collection);
 
         Self { collections }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gtk::glib::DateTime;
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct TestCollection {
+        name: String,
+    }
+
+    impl TestCollection {
+        fn new(name: String) -> Self {
+            Self { name }
+        }
+    }
+
+    impl AnyItem for TestCollection {
+        fn kind(&self) -> ItemKind {
+            ItemKind::Collection
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+
+        fn name(&self) -> String {
+            self.name.clone()
+        }
+
+        fn updated_at(&self) -> DateTime {
+            DateTime::from_utc(2025, 6, 16, 11, 30, 0.0).unwrap()
+        }
+
+        fn location(&self) -> String {
+            String::from("/somewhere/over/the/filesystem")
+        }
+
+        fn clone_box(&self) -> Box<dyn AnyItem> {
+            self.as_collection().unwrap()
+        }
+
+        fn as_note(&self) -> Option<Box<dyn AnyNote>> {
+            None
+        }
+
+        fn as_collection(&self) -> Option<Box<dyn AnyCollection>> {
+            Some(Box::new(Self {
+                name: self.name.clone(),
+            }))
+        }
+
+        fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
+            None
+        }
+    }
+
+    impl AnyCollection for TestCollection {}
+
+    impl PartialEq for TestCollection {
+        fn eq(&self, other: &Self) -> bool {
+            self.name == other.name
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "need a root collection")]
+    fn collection_new_ensures_at_least_one_collection_contained() {
+        let _ = CollectionPath::new(vec![]);
+    }
+
+    #[test]
+    fn collection_new_works() {
+        let _ = CollectionPath::new(vec![Box::new(TestCollection::new(String::from("a")))]);
+    }
+
+    #[test]
+    fn collection_path_parent_returns_parent_path() {
+        let path = CollectionPath::new(vec![
+            Box::new(TestCollection::new(String::from("a"))),
+            Box::new(TestCollection::new(String::from("b"))),
+        ]);
+
+        assert!(path.parent().is_some());
+        assert!(
+            path.parent().unwrap()
+                == CollectionPath::new(vec![Box::new(TestCollection::new(String::from("a")))])
+        );
+    }
+
+    #[test]
+    fn collection_path_parent_returns_none_for_root() {
+        let path = CollectionPath::new(vec![Box::new(TestCollection::new(String::from("a")))]);
+
+        assert!(path.parent().is_none());
     }
 }
