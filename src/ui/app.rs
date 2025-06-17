@@ -55,18 +55,18 @@ impl App {
 
 #[derive(Debug)]
 pub enum AppMsg {
-    SelectedCollectionPath(CollectionPath),
-    SelectedItem(Box<dyn AnyItem>),
     ContentChanged {
         note: Box<dyn AnyNote>,
         content: String,
     },
-    UpdateItemList(),
-    SetMode(Mode),
-    ToggleMode(),
     NoteContentChanged(String),
+    SelectedCollectionPath(CollectionPath),
+    SelectedItem(Box<dyn AnyItem>),
+    SetMode(Mode),
     ShowAboutDialog(),
+    ToggleMode(),
     Up(),
+    UpdateItemList(),
 }
 
 #[relm4::component(pub, async)]
