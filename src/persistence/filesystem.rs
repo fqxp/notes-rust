@@ -7,7 +7,7 @@ use gtk::{gio, glib};
 
 use crate::errors::{ReadError, WriteError};
 
-use super::models::{CollectionPath, Meta};
+use super::models::{AnyNote, CollectionPath, Meta};
 use super::storage::StorageBackend;
 use super::{
     models::{AnyItem, Attachment, Collection, Note},
@@ -134,6 +134,37 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
             .collect();
 
         Result::Ok(result)
+    }
+
+    async fn rename_note(
+        &self,
+        note: &Note<Filesystem>,
+        new_name: String,
+    ) -> Result<Box<dyn AnyNote>, WriteError> {
+        println!("💖💖 renaming note");
+        if let Some(dest_file) = note
+            .meta
+            .file
+            .parent()
+            .and_then(|f| Some(f.child(&new_name)))
+        {
+            let (result, _) = note.meta.file.move_future(
+                &dest_file,
+                gio::FileCopyFlags::NONE,
+                glib::Priority::DEFAULT,
+            );
+            result.await?;
+
+            Ok(Box::new(Note::<Filesystem>::new(
+                new_name,
+                FilesystemMeta {
+                    file: dest_file,
+                    updated_at: DateTime::now_utc().expect("current time"),
+                },
+            )))
+        } else {
+            Err(WriteError::OtherError("error moving file".to_string()))
+        }
     }
 
     async fn load_content(&self, note: &Note<Filesystem>) -> Result<NoteContent, ReadError> {

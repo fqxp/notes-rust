@@ -25,6 +25,8 @@ To develop a note-taking tool that:
   [x] navigating directory tree
   [x] display further info on individual notes (e.g., file name, size on disk, file type)
   [x] About dialog
+  [·] rename notes
+  [ ] rename collections
   [ ] proper error reporting
   [ ] basic attachment view (e.g. images, videos, button for opening with external app)
   [x] breadcrumbs for current folder widget

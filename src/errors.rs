@@ -36,6 +36,13 @@ impl From<FromUtf8Error> for ReadError {
 
 pub enum WriteError {
     IoError(glib::Error),
+    OtherError(String),
+}
+
+impl From<glib::Error> for WriteError {
+    fn from(err: glib::Error) -> Self {
+        WriteError::IoError(err)
+    }
 }
 
 impl From<(Vec<u8>, glib::Error)> for WriteError {
@@ -48,6 +55,7 @@ impl fmt::Display for WriteError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             WriteError::IoError(err) => write!(f, "{}", err.to_string()),
+            WriteError::OtherError(msg) => write!(f, "{}", msg),
         }
     }
 }

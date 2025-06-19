@@ -8,3 +8,4 @@ pub mod note_web_view;
 pub mod path_select;
 pub mod path_select_item;
 pub mod sidebar;
+pub mod title;

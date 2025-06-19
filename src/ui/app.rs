@@ -6,6 +6,7 @@ use crate::persistence::models::{AnyItem, AnyNote, CollectionPath, ItemKind};
 use crate::persistence::storage::{ItemStorage, NoteContent};
 use crate::ui::note_view::{NoteView, NoteViewMsg};
 use crate::ui::sidebar::Sidebar;
+use crate::ui::title::Title;
 use adw;
 use gtk::prelude::*;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
@@ -14,6 +15,7 @@ use relm4::{main_application, prelude::*};
 use super::about_dialog::{AboutDialog, AboutDialogMsg};
 use super::note_view::Mode;
 use super::sidebar::SidebarMsg;
+use super::title::{TitleMode, TitleMsg};
 
 relm4::new_action_group!(pub AppActions, "app");
 relm4::new_stateless_action!(pub AboutAction, AppActions, "about");
@@ -27,7 +29,9 @@ pub struct App {
     storage: Box<dyn ItemStorage>,
     sidebar: AsyncController<Sidebar>,
     note_view: AsyncController<NoteView>,
+    title_controller: Controller<Title>,
     current_path: CollectionPath,
+    current_note: Option<Box<dyn AnyNote>>,
     mode: Mode,
 }
 
@@ -60,6 +64,8 @@ pub enum AppMsg {
         content: String,
     },
     NoteContentChanged(String),
+    StartRenameNote(),
+    RenameNote(Box<dyn AnyNote>, String),
     SelectedCollectionPath(CollectionPath),
     SelectedItem(Box<dyn AnyItem>),
     SetMode(Mode),
@@ -86,9 +92,7 @@ impl AsyncComponent for App {
                 set_orientation: gtk::Orientation::Vertical,
                 adw::HeaderBar {
                     #[wrap(Some)]
-                    set_title_widget = &adw::WindowTitle {
-                        set_title: "notes",
-                    },
+                    set_title_widget = model.title_controller.widget(),
 
                     pack_end = &gtk::MenuButton {
                         set_icon_name: icon_names::MENU,
@@ -138,13 +142,18 @@ impl AsyncComponent for App {
         let sidebar: AsyncController<Sidebar> = Sidebar::builder()
             .launch(current_path.clone())
             .forward(sender.input_sender(), identity);
+        let title_controller: Controller<Title> = Title::builder()
+            .launch(())
+            .forward(sender.input_sender(), identity);
 
         let model = App {
             about_dialog_controller,
             storage,
             sidebar,
             note_view,
+            title_controller,
             current_path,
+            current_note: None,
             mode: Mode::View,
         };
 
@@ -218,10 +227,13 @@ impl AsyncComponent for App {
                     let note = item.as_note().expect("note");
                     let result = self.storage.as_ref().load_content(&*note).await;
                     if let Ok(content) = result {
+                        self.current_note = Some(note.clone());
                         self.note_view.emit(NoteViewMsg::LoadedNote {
                             note,
                             content: content.content,
                         });
+                        self.title_controller
+                            .emit(TitleMsg::SetCurrentNote(self.current_note.clone()));
                     } else {
                         panic!(
                             "tried to load content from non-note {:?}: {:?}",
@@ -251,6 +263,14 @@ impl AsyncComponent for App {
                         },
                     )
                     .await;
+            }
+            AppMsg::StartRenameNote() => {
+                self.title_controller
+                    .emit(TitleMsg::SetMode(TitleMode::EditTitle));
+            }
+            AppMsg::RenameNote(note, new_name) => {
+                self.title_controller
+                    .emit(TitleMsg::SetMode(TitleMode::Normal));
             }
             AppMsg::UpdateItemList() => {
                 self.update_note_list(&self.current_path).await;
