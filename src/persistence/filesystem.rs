@@ -5,7 +5,7 @@ use gtk::gio::prelude::*;
 use gtk::glib::DateTime;
 use gtk::{gio, glib};
 
-use crate::errors::{ReadError, WriteError};
+use crate::errors::Error;
 
 use super::models::{AnyNote, CollectionPath, Meta};
 use super::storage::StorageBackend;
@@ -163,7 +163,7 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
                 },
             )))
         } else {
-            Err(WriteError::OtherError("error moving file".to_string()))
+            Err(Error::OtherError("error moving file".to_string()))
         }
     }
 
@@ -181,10 +181,10 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
         &self,
         note: &Note<Filesystem>,
         content: &NoteContent,
-    ) -> Result<String, WriteError> {
         let (_, etag_after_save) = note
             .meta
             .file
+    ) -> Result<String, Error> {
             .replace_contents_future(
                 content.content.as_bytes().to_vec(),
                 content.etag.as_deref(),

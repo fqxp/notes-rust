@@ -2,60 +2,41 @@ use std::{fmt, string::FromUtf8Error};
 
 use gtk::glib;
 
+#[derive(Debug)]
 pub enum Error {
-    #[allow(dead_code)]
+    DecodeError(FromUtf8Error),
+    DoesNotExist { uri: String },
+    IoError(glib::Error),
+    OtherError(String),
     UnknownStorageBackend(String),
 }
 
-#[derive(Debug)]
-pub enum ReadError {
-    IoError(glib::Error),
-    DecodeError(FromUtf8Error),
-}
-
-impl fmt::Display for ReadError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ReadError::IoError(err) => write!(f, "{}", err.to_string()),
-            ReadError::DecodeError(err) => write!(f, "{}", err.to_string()),
+            Error::DecodeError(err) => write!(f, "{}", err.to_string()),
+            Error::DoesNotExist { uri } => write!(f, "could not find {}", uri),
+            Error::IoError(err) => write!(f, "{}", err.to_string()),
+            Error::OtherError(msg) => write!(f, "{}", msg),
+            Error::UnknownStorageBackend(err) => write!(f, "{}", err.to_string()),
         }
     }
 }
 
-impl From<glib::Error> for ReadError {
-    fn from(err: glib::Error) -> ReadError {
-        ReadError::IoError(err)
+impl From<glib::Error> for Error {
+    fn from(err: glib::Error) -> Error {
+        Error::IoError(err)
     }
 }
 
-impl From<FromUtf8Error> for ReadError {
-    fn from(err: FromUtf8Error) -> ReadError {
-        ReadError::DecodeError(err)
+impl From<FromUtf8Error> for Error {
+    fn from(err: FromUtf8Error) -> Error {
+        Error::DecodeError(err)
     }
 }
 
-pub enum WriteError {
-    IoError(glib::Error),
-    OtherError(String),
-}
-
-impl From<glib::Error> for WriteError {
-    fn from(err: glib::Error) -> Self {
-        WriteError::IoError(err)
-    }
-}
-
-impl From<(Vec<u8>, glib::Error)> for WriteError {
-    fn from(err: (Vec<u8>, glib::Error)) -> WriteError {
-        WriteError::IoError(err.1)
-    }
-}
-
-impl fmt::Display for WriteError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            WriteError::IoError(err) => write!(f, "{}", err.to_string()),
-            WriteError::OtherError(msg) => write!(f, "{}", msg),
-        }
+impl From<(Vec<u8>, glib::Error)> for Error {
+    fn from(err: (Vec<u8>, glib::Error)) -> Error {
+        Error::IoError(err.1)
     }
 }

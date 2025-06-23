@@ -49,7 +49,7 @@ pub trait ItemStorage {
         &self,
         note: &dyn AnyNote,
         content: &NoteContent,
-    ) -> Result<String, WriteError>;
+    ) -> Result<String, Error>;
 }
 
 // type-erased wrapper for typed storage
@@ -65,7 +65,7 @@ impl<S: StorageBackend + 'static + Send> ItemStorage for DynItemStorage<S> {
         Result::Ok(Box::new(root))
     }
 
-    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
+    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, Error> {
         let typed_items: Vec<Box<dyn AnyItem>> = self.inner.list_items(path).await?;
 
         Ok(typed_items)
@@ -75,13 +75,13 @@ impl<S: StorageBackend + 'static + Send> ItemStorage for DynItemStorage<S> {
         &self,
         note: Box<&dyn AnyNote>,
         new_name: String,
-    ) -> Result<Box<dyn AnyNote>, WriteError> {
         let note = Note::<S>::from_any(*note).unwrap();
+    ) -> Result<Box<dyn AnyNote>, Error> {
 
         Ok(self.inner.rename_note(note, new_name).await?)
     }
 
-    async fn load_content(&self, note: &dyn AnyNote) -> Result<NoteContent, ReadError> {
+    async fn load_content(&self, note: &dyn AnyNote) -> Result<NoteContent, Error> {
         let note = Note::<S>::from_any(note).unwrap();
         let content: NoteContent = self.inner.load_content(note).await?;
 
@@ -92,7 +92,7 @@ impl<S: StorageBackend + 'static + Send> ItemStorage for DynItemStorage<S> {
         &self,
         note: &dyn AnyNote,
         content: &NoteContent,
-    ) -> Result<String, WriteError> {
+    ) -> Result<String, Error> {
         let note = Note::<S>::from_any(note).unwrap();
         let etag = self.inner.save_content(note, content).await?;
 
