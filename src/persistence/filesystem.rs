@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use gtk::gio::prelude::*;
-use gtk::glib::DateTime;
 use gtk::{gio, glib};
 
 use crate::errors::Error;
@@ -15,25 +14,11 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct FilesystemMeta {
-    file: gio::File,
-    updated_at: DateTime,
-}
+pub struct FilesystemMeta {}
 
-impl Meta for FilesystemMeta {
-    fn updated_at(&self) -> DateTime {
-        self.updated_at.clone()
-    }
+impl Meta for FilesystemMeta {}
 
-    fn location(&self) -> String {
-        self.file
-            .path()
-            .map_or(String::from("no filename"), |pathbuf| {
-                pathbuf.display().to_string()
-            })
-    }
-}
-
+#[derive(Clone)]
 pub struct Filesystem;
 
 impl StorageBackend for Filesystem {
@@ -43,18 +28,18 @@ impl StorageBackend for Filesystem {
 }
 
 pub struct FilesystemStorage {
-    pub root: gio::File,
+    pub root: Collection<Filesystem>,
 }
 
 impl FilesystemStorage {
-    pub fn new(root: &PathBuf) -> Self {
-        Self {
-            root: gio::File::for_path(root),
+    pub async fn from_uri(root_uri: &str) -> Result<Self, Error> {
+        let file = gio::File::for_uri(root_uri);
+        if !file.query_exists(gio::Cancellable::NONE) {
+            return Err(Error::DoesNotExist {
+                uri: String::from(root_uri),
+            });
         }
-    }
 
-    async fn meta_for_root(&self) -> Result<FilesystemMeta, ReadError> {
-        let file = self.root.clone();
         let file_info = file
             .query_info_future(
                 "time::*",
@@ -62,31 +47,43 @@ impl FilesystemStorage {
                 glib::Priority::DEFAULT,
             )
             .await?;
-
-        Result::Ok(FilesystemMeta {
-            file,
-            updated_at: file_info
+        let root = Collection::new(
+            FilesystemMeta {},
+            file.basename()
+                .expect("valid root path")
+                .to_string_lossy()
+                .to_string(),
+            file_info
                 .modification_date_time()
-                .expect("valid modification time"),
-        })
+                .expect("valid modification datetime"),
+            root_uri.to_string(),
+        );
+
+        Ok(Self { root })
+    }
+
+    fn path_from_uri(&self, uri: String) -> Option<PathBuf> {
+        if !uri.starts_with("file://") {
+            return None;
+        }
+
+        Some(PathBuf::from(uri[4..].to_string()))
     }
 }
 
 #[async_trait(?Send)]
 impl TypedItemStorage<Filesystem> for FilesystemStorage {
-    async fn root(&self) -> Result<Collection<Filesystem>, ReadError> {
-        let collection = self.meta_for_root().await?;
-
-        Result::Ok(Collection::new("/", collection))
+    fn root(&self) -> Box<Collection<Filesystem>> {
+        Box::new(self.root.clone())
     }
 
-    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, ReadError> {
+    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, Error> {
         let collection = path
             .last()
             .as_any()
             .downcast_ref::<Collection<Filesystem>>()
             .unwrap();
-        let dir = &collection.meta.file;
+        let dir = gio::File::for_uri(&collection.location());
 
         let file_infos = dir
             .enumerate_children_future(
@@ -103,31 +100,28 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
 
                 match file_info.file_type() {
                     gio::FileType::Regular => Box::new(Note::<Filesystem>::new(
-                        file_info.name().to_str().unwrap(),
-                        FilesystemMeta {
-                            file,
-                            updated_at: file_info
-                                .modification_date_time()
-                                .expect("modification time should be set"),
-                        },
+                        FilesystemMeta {},
+                        file_info.name().to_string_lossy().to_string(),
+                        file_info
+                            .modification_date_time()
+                            .expect("modification time should be set"),
+                        file.uri().to_string(),
                     )) as Box<dyn AnyItem>,
                     gio::FileType::Directory => Box::new(Collection::<Filesystem>::new(
-                        file_info.name().to_str().unwrap(),
-                        FilesystemMeta {
-                            file,
-                            updated_at: file_info
-                                .modification_date_time()
-                                .expect("modification time should be set"),
-                        },
+                        FilesystemMeta {},
+                        file_info.name().to_string_lossy().to_string(),
+                        file_info
+                            .modification_date_time()
+                            .expect("modification time should be set"),
+                        file.uri().to_string(),
                     )) as Box<dyn AnyItem>,
                     _ => Box::new(Attachment::<Filesystem>::new(
-                        file_info.name().to_str().unwrap(),
-                        FilesystemMeta {
-                            file,
-                            updated_at: file_info
-                                .modification_date_time()
-                                .expect("modification time should be set"),
-                        },
+                        FilesystemMeta {},
+                        file_info.name().to_string_lossy().to_string(),
+                        file_info
+                            .modification_date_time()
+                            .expect("modification time should be set"),
+                        file.uri().to_string(),
                     )) as Box<dyn AnyItem>,
                 }
             })
@@ -139,36 +133,41 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
     async fn rename_note(
         &self,
         note: &Note<Filesystem>,
-        new_name: String,
-    ) -> Result<Box<dyn AnyNote>, WriteError> {
-        println!("💖💖 renaming note");
-        if let Some(dest_file) = note
-            .meta
-            .file
-            .parent()
-            .and_then(|f| Some(f.child(&new_name)))
-        {
-            let (result, _) = note.meta.file.move_future(
+        new_name: &str,
+    ) -> Result<Box<dyn AnyNote>, Error> {
+        let src_file = gio::File::for_uri(&note.location());
+
+        if let Some(dest_file) = src_file.parent().and_then(|f| Some(f.child(new_name))) {
+            let (result, _) = src_file.move_future(
                 &dest_file,
                 gio::FileCopyFlags::NONE,
                 glib::Priority::DEFAULT,
             );
             result.await?;
 
+            let file_info = dest_file
+                .query_info_future(
+                    "time::*",
+                    gio::FileQueryInfoFlags::NONE,
+                    glib::Priority::DEFAULT,
+                )
+                .await?;
+
             Ok(Box::new(Note::<Filesystem>::new(
-                new_name,
-                FilesystemMeta {
-                    file: dest_file,
-                    updated_at: DateTime::now_utc().expect("current time"),
-                },
+                FilesystemMeta {},
+                String::from(new_name),
+                file_info
+                    .modification_date_time()
+                    .expect("valid modification time"),
+                format!("file://{:?}", dest_file.path().expect("valid path")),
             )))
         } else {
             Err(Error::OtherError("error moving file".to_string()))
         }
     }
 
-    async fn load_content(&self, note: &Note<Filesystem>) -> Result<NoteContent, ReadError> {
-        let file = &note.meta.file;
+    async fn load_content(&self, note: &Note<Filesystem>) -> Result<NoteContent, Error> {
+        let file = gio::File::for_uri(&note.location());
         let (content, etag) = file.load_contents_future().await?;
         let content = String::from_utf8(content.to_vec())?;
         let etag = etag.and_then(|g_string| Some(g_string.to_string()));
@@ -181,10 +180,9 @@ impl TypedItemStorage<Filesystem> for FilesystemStorage {
         &self,
         note: &Note<Filesystem>,
         content: &NoteContent,
-        let (_, etag_after_save) = note
-            .meta
-            .file
     ) -> Result<String, Error> {
+        let file = gio::File::for_uri(&note.location());
+        let (_, etag_after_save) = file
             .replace_contents_future(
                 content.content.as_bytes().to_vec(),
                 content.etag.as_deref(),

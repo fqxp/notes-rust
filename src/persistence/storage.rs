@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::errors::{ReadError, WriteError};
+use crate::errors::Error;
 
 use super::models::{AnyCollection, AnyItem, AnyNote, Collection, CollectionPath, Meta, Note};
 
@@ -19,32 +19,24 @@ pub trait StorageBackend {
 // typed storage
 #[async_trait(?Send)]
 pub trait TypedItemStorage<S: StorageBackend>: Send + Sync {
-    async fn root(&self) -> Result<Collection<S>, ReadError>;
-    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, ReadError>;
-    async fn rename_note(
-        &self,
-        note: &Note<S>,
-        new_name: String,
-    ) -> Result<Box<dyn AnyNote>, WriteError>;
-    async fn load_content(&self, note: &Note<S>) -> Result<NoteContent, ReadError>;
-    async fn save_content(
-        &self,
-        note: &Note<S>,
-        content: &NoteContent,
-    ) -> Result<String, WriteError>;
+    fn root(&self) -> Box<Collection<S>>;
+    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, Error>;
+    async fn rename_note(&self, note: &Note<S>, new_name: &str) -> Result<Box<dyn AnyNote>, Error>;
+    async fn load_content(&self, note: &Note<S>) -> Result<NoteContent, Error>;
+    async fn save_content(&self, note: &Note<S>, content: &NoteContent) -> Result<String, Error>;
 }
 
 // type-erased storage
 #[async_trait(?Send)]
 pub trait ItemStorage {
-    async fn root(&self) -> Result<Box<dyn AnyCollection>, ReadError>;
-    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, ReadError>;
+    fn root(&self) -> Box<dyn AnyCollection>;
+    async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, Error>;
     async fn rename_note(
         &self,
-        note: Box<&dyn AnyNote>,
-        new_name: String,
-    ) -> Result<Box<dyn AnyNote>, WriteError>;
-    async fn load_content(&self, note: &dyn AnyNote) -> Result<NoteContent, ReadError>;
+        note: &dyn AnyNote,
+        new_name: &str,
+    ) -> Result<Box<dyn AnyNote>, Error>;
+    async fn load_content(&self, note: &dyn AnyNote) -> Result<NoteContent, Error>;
     async fn save_content(
         &self,
         note: &dyn AnyNote,
@@ -59,10 +51,8 @@ pub(super) struct DynItemStorage<S: StorageBackend> {
 
 #[async_trait(?Send)]
 impl<S: StorageBackend + 'static + Send> ItemStorage for DynItemStorage<S> {
-    async fn root(&self) -> Result<Box<dyn AnyCollection>, ReadError> {
-        let root = self.inner.root().await?;
-
-        Result::Ok(Box::new(root))
+    fn root(&self) -> Box<dyn AnyCollection> {
+        self.inner.root()
     }
 
     async fn list_items(&self, path: &CollectionPath) -> Result<Vec<Box<dyn AnyItem>>, Error> {
@@ -73,10 +63,10 @@ impl<S: StorageBackend + 'static + Send> ItemStorage for DynItemStorage<S> {
 
     async fn rename_note(
         &self,
-        note: Box<&dyn AnyNote>,
-        new_name: String,
-        let note = Note::<S>::from_any(*note).unwrap();
+        note: &dyn AnyNote,
+        new_name: &str,
     ) -> Result<Box<dyn AnyNote>, Error> {
+        let note = Note::<S>::from_any(note).unwrap();
 
         Ok(self.inner.rename_note(note, new_name).await?)
     }

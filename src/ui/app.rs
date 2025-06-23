@@ -124,17 +124,16 @@ impl AsyncComponent for App {
     }
 
     async fn init(
-        storage_url: Self::Init,
+        storage_uri: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
         let about_dialog_controller: Controller<AboutDialog> =
             AboutDialog::builder().launch(()).detach();
-        let storage = build_storage_from_url(storage_url.clone().as_str())
-            .ok()
-            .unwrap();
-        let current_path =
-            CollectionPath::from(storage.root().await.expect("valid root collection"));
+        let storage = build_storage_from_url(storage_uri.clone().as_str())
+            .await
+            .expect(format!("could not build storage from URI {:?}", storage_uri).as_str());
+        let current_path = CollectionPath::from(storage.root());
 
         let note_view: AsyncController<NoteView> = NoteView::builder()
             .launch(())
@@ -269,8 +268,26 @@ impl AsyncComponent for App {
                     .emit(TitleMsg::SetMode(TitleMode::EditTitle));
             }
             AppMsg::RenameNote(note, new_name) => {
-                self.title_controller
-                    .emit(TitleMsg::SetMode(TitleMode::Normal));
+                let result = self
+                    .storage
+                    .as_ref()
+                    .rename_note(note.as_ref(), &new_name)
+                    .await;
+                if let Ok(renamed_note) = result {
+                    self.current_note = Some(renamed_note);
+                    self.title_controller
+                        .emit(TitleMsg::SetCurrentNote(self.current_note.clone()));
+                    self.title_controller
+                        .emit(TitleMsg::SetMode(TitleMode::Normal));
+                    self.update_note_list(&self.current_path).await;
+                } else {
+                    panic!(
+                        "rename note from {} to {} failed: {:?}",
+                        note.name(),
+                        new_name,
+                        result.err()
+                    );
+                }
             }
             AppMsg::UpdateItemList() => {
                 self.update_note_list(&self.current_path).await;

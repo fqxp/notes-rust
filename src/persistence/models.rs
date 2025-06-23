@@ -5,10 +5,7 @@ use gtk::glib::DateTime;
 
 use super::storage::StorageBackend;
 
-pub trait Meta: Send {
-    fn updated_at(&self) -> DateTime;
-    fn location(&self) -> String;
-}
+pub trait Meta: Send {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemKind {
@@ -20,13 +17,14 @@ pub enum ItemKind {
 pub trait AnyItem: std::fmt::Debug + Any + Send {
     fn kind(&self) -> ItemKind;
     fn as_any(&self) -> &dyn Any;
-    fn name(&self) -> String;
-    fn updated_at(&self) -> DateTime;
-    fn location(&self) -> String;
-    fn clone_box(&self) -> Box<dyn AnyItem>;
     fn as_note(&self) -> Option<Box<dyn AnyNote>>;
     fn as_collection(&self) -> Option<Box<dyn AnyCollection>>;
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>>;
+    fn clone_box(&self) -> Box<dyn AnyItem>;
+
+    fn name(&self) -> String;
+    fn updated_at(&self) -> DateTime;
+    fn location(&self) -> String;
 }
 
 impl PartialEq for &dyn AnyItem {
@@ -85,8 +83,10 @@ impl PartialEq for Box<dyn AnyAttachment> {
 
 // item models
 pub struct Note<S: StorageBackend> {
-    pub name: String,
-    pub meta: S::NoteMeta,
+    pub(super) meta: S::NoteMeta,
+    name: String,
+    updated_at: DateTime,
+    location: String,
     _marker: PhantomData<S>,
 }
 
@@ -95,10 +95,17 @@ impl<S: StorageBackend + 'static + Send> Note<S> {
         note.as_any().downcast_ref::<Note<S>>()
     }
 
-    pub fn new(name: impl Into<String>, meta: S::NoteMeta) -> Self {
+    pub(super) fn new(
+        meta: S::NoteMeta,
+        name: String,
+        updated_at: DateTime,
+        location: String,
+    ) -> Self {
         Self {
-            name: name.into(),
             meta,
+            name,
+            updated_at,
+            location,
             _marker: PhantomData,
         }
     }
@@ -116,26 +123,12 @@ where
         self
     }
 
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn updated_at(&self) -> DateTime {
-        self.meta.updated_at()
-    }
-
-    fn location(&self) -> String {
-        self.meta.location()
-    }
-
-    fn clone_box(&self) -> Box<dyn AnyItem> {
-        self.as_note().unwrap()
-    }
-
     fn as_note(&self) -> Option<Box<dyn AnyNote>> {
         Some(Box::new(Self {
-            name: self.name.clone(),
             meta: self.meta.clone(),
+            name: self.name.clone(),
+            updated_at: self.updated_at.clone(),
+            location: self.location.clone(),
             _marker: PhantomData,
         }))
     }
@@ -147,6 +140,22 @@ where
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
         None
     }
+
+    fn clone_box(&self) -> Box<dyn AnyItem> {
+        self.as_note().unwrap()
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn updated_at(&self) -> DateTime {
+        self.updated_at.clone()
+    }
+
+    fn location(&self) -> String {
+        self.location.clone()
+    }
 }
 
 impl<S: StorageBackend + 'static + Send> AnyNote for Note<S> {}
@@ -157,9 +166,12 @@ impl<S: StorageBackend> std::fmt::Debug for Note<S> {
     }
 }
 
+#[derive(Clone)]
 pub struct Collection<S: StorageBackend> {
-    pub name: String,
-    pub meta: S::CollectionMeta,
+    meta: S::CollectionMeta,
+    name: String,
+    updated_at: DateTime,
+    location: String,
     _marker: PhantomData<S>,
 }
 
@@ -169,10 +181,17 @@ impl<S: StorageBackend + 'static + Send> Collection<S> {
         collection.as_any().downcast_ref::<Collection<S>>()
     }
 
-    pub fn new(name: impl Into<String>, meta: S::CollectionMeta) -> Self {
+    pub fn new(
+        meta: S::CollectionMeta,
+        name: String,
+        updated_at: DateTime,
+        location: String,
+    ) -> Self {
         Self {
-            name: name.into(),
             meta,
+            name,
+            updated_at,
+            location,
             _marker: PhantomData,
         }
     }
@@ -190,36 +209,38 @@ where
         self
     }
 
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn updated_at(&self) -> DateTime {
-        self.meta.updated_at()
-    }
-
-    fn location(&self) -> String {
-        self.meta.location()
-    }
-
-    fn clone_box(&self) -> Box<dyn AnyItem> {
-        self.as_collection().unwrap()
-    }
-
     fn as_note(&self) -> Option<Box<dyn AnyNote>> {
         None
     }
 
     fn as_collection(&self) -> Option<Box<dyn AnyCollection>> {
         Some(Box::new(Self {
-            name: self.name.clone(),
             meta: self.meta.clone(),
+            name: self.name.clone(),
+            updated_at: self.updated_at.clone(),
+            location: self.location.clone(),
             _marker: PhantomData,
         }))
     }
 
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
         None
+    }
+
+    fn clone_box(&self) -> Box<dyn AnyItem> {
+        self.as_collection().unwrap()
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn updated_at(&self) -> DateTime {
+        self.updated_at.clone()
+    }
+
+    fn location(&self) -> String {
+        self.location.clone()
     }
 }
 
@@ -237,8 +258,10 @@ impl<S: StorageBackend> std::fmt::Debug for Collection<S> {
 }
 
 pub struct Attachment<S: StorageBackend> {
-    pub name: String,
     pub meta: S::AttachmentMeta,
+    name: String,
+    updated_at: DateTime,
+    location: String,
     _marker: PhantomData<S>,
 }
 
@@ -248,10 +271,17 @@ impl<S: StorageBackend + 'static> Attachment<S> {
         attachment.as_any().downcast_ref::<Attachment<S>>()
     }
 
-    pub fn new(name: impl Into<String>, meta: S::AttachmentMeta) -> Self {
+    pub fn new(
+        meta: S::AttachmentMeta,
+        name: String,
+        updated_at: DateTime,
+        location: String,
+    ) -> Self {
         Self {
-            name: name.into(),
             meta,
+            name,
+            updated_at,
+            location,
             _marker: PhantomData,
         }
     }
@@ -269,22 +299,6 @@ where
         self
     }
 
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn updated_at(&self) -> DateTime {
-        self.meta.updated_at()
-    }
-
-    fn location(&self) -> String {
-        self.meta.location()
-    }
-
-    fn clone_box(&self) -> Box<dyn AnyItem> {
-        self.as_attachment().unwrap()
-    }
-
     fn as_note(&self) -> Option<Box<dyn AnyNote>> {
         None
     }
@@ -295,10 +309,28 @@ where
 
     fn as_attachment(&self) -> Option<Box<dyn AnyAttachment>> {
         Some(Box::new(Self {
-            name: self.name.clone(),
             meta: self.meta.clone(),
+            name: self.name.clone(),
+            updated_at: self.updated_at.clone(),
+            location: self.location.clone(),
             _marker: PhantomData,
         }))
+    }
+
+    fn clone_box(&self) -> Box<dyn AnyItem> {
+        self.as_attachment().unwrap()
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn updated_at(&self) -> DateTime {
+        self.updated_at.clone()
+    }
+
+    fn location(&self) -> String {
+        self.location.clone()
     }
 }
 
