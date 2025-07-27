@@ -3,11 +3,7 @@ mod persistence;
 mod ui;
 mod util;
 
-use std::{
-    env,
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 
 use crate::ui::app::App;
 use relm4::RelmApp;
@@ -31,7 +27,7 @@ fn main() -> Result<(), ()> {
     let uri = format!("file://{}", notes_rootdir.to_string_lossy());
     let app = RelmApp::new(APP_ID);
 
-    app.run_async::<App>(uri.into());
+    app.run_async::<App>(uri);
 
     Ok(())
 }
