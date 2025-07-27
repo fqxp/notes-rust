@@ -28,6 +28,7 @@ impl NoteListItem {
                 set_spacing: 10,
                 set_margin_top: 10,
                 set_margin_bottom: 10,
+                set_focusable: false,
 
                 #[name = "icon"]
                 gtk::Image {
