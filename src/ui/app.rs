@@ -8,7 +8,7 @@ use crate::ui::note_view::{NoteView, NoteViewMsg};
 use crate::ui::sidebar::Sidebar;
 use crate::ui::title::Title;
 use adw;
-use gtk::prelude::*;
+use gtk::{UriLauncher, Window, prelude::*};
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::{main_application, prelude::*};
 
@@ -60,6 +60,7 @@ impl App {
 
 #[derive(Debug)]
 pub enum AppMsg {
+    ClickedWebLink(String),
     ContentChanged {
         note: Box<dyn AnyNote>,
         content: String,
@@ -327,6 +328,11 @@ impl AsyncComponent for App {
                 //         },
                 //         |etag| Some(etag),
                 //     );
+            }
+            AppMsg::ClickedWebLink(uri) => {
+                let _ = UriLauncher::new(&uri)
+                    .launch_future(Option::<&Window>::None)
+                    .await;
             }
         }
     }

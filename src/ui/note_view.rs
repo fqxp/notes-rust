@@ -118,8 +118,9 @@ impl AsyncComponent for NoteView {
         let panel: Controller<NotePanel> = NotePanel::builder()
             .launch(())
             .forward(sender.output_sender(), identity);
-        let web_view: Controller<NoteWebView> =
-            NoteWebView::builder().launch(String::from("")).detach();
+        let web_view: Controller<NoteWebView> = NoteWebView::builder()
+            .launch(String::from(""))
+            .forward(sender.output_sender(), identity);
         let editor: Controller<NoteEditor> = NoteEditor::builder()
             .launch(String::from(""))
             .forward(sender.output_sender(), identity);

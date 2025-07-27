@@ -1,8 +1,7 @@
-use gtk::prelude::*;
 use relm4::{Component, ComponentParts, ComponentSender};
-use webkit6::prelude::*;
+use webkit6::{NavigationPolicyDecision, PolicyDecisionType, prelude::*};
 
-use crate::util::markdown::markdown_to_html;
+use crate::{ui::app::AppMsg, util::markdown::markdown_to_html};
 
 #[tracker::track]
 pub struct NoteWebView {
@@ -20,7 +19,7 @@ impl NoteWebView {}
 impl Component for NoteWebView {
     type Init = String;
     type Input = NoteWebViewMsg;
-    type Output = ();
+    type Output = AppMsg;
     type CommandOutput = ();
 
     view! {
@@ -35,6 +34,27 @@ impl Component for NoteWebView {
                 grab_focus: (),
                 #[track(model.changed(NoteWebView::content()))]
                 load_html[None]: markdown_to_html(model.get_content()).as_str(),
+
+                connect_decide_policy[sender] => move |_, decision, decision_type| {
+                    if decision_type == PolicyDecisionType::NavigationAction {
+                        if let Some(nav_decision) = decision.downcast_ref::<NavigationPolicyDecision>(){
+                            if let Some(mut nav_action) = nav_decision.navigation_action() {
+                                if let Some(request) = nav_action.request() {
+                                    let uri = request.uri().expect("uri not to be empty").to_string();
+
+                                    if uri != "about:blank" {
+                                        sender.output_sender().emit(AppMsg::ClickedWebLink(uri));
+
+                                        decision.ignore();
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    false
+                }
             },
         }
     }
@@ -42,7 +62,7 @@ impl Component for NoteWebView {
     fn init(
         content: Self::Init,
         _root: Self::Root,
-        _sender: ComponentSender<Self>,
+        sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let web_view = webkit6::WebView::builder().build();
         let stylesheet = webkit6::UserStyleSheet::new(
