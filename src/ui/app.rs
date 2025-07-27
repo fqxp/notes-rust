@@ -19,6 +19,7 @@ use super::title::{TitleMode, TitleMsg};
 
 relm4::new_action_group!(pub AppActions, "app");
 relm4::new_stateless_action!(pub AboutAction, AppActions, "about");
+relm4::new_stateless_action!(pub FocusNoteListAction, AppActions, "focus-note-list");
 relm4::new_stateless_action!(pub FocusSearchEntryAction, AppActions, "focus-search-entry");
 relm4::new_stateless_action!(pub QuitAction, AppActions, "quit");
 relm4::new_stateless_action!(pub ToggleModeAction, AppActions, "toggle");
@@ -47,7 +48,7 @@ impl App {
                     panic!("error loading note list {:?}", err.to_string());
                     // self.model.error = Some(err.to_string());
                 },
-                |result| Some(result),
+                Some,
             )
             .unwrap();
 
@@ -132,7 +133,7 @@ impl AsyncComponent for App {
             AboutDialog::builder().launch(()).detach();
         let storage = build_storage_from_url(storage_uri.clone().as_str())
             .await
-            .expect(format!("could not build storage from URI {:?}", storage_uri).as_str());
+            .unwrap_or_else(|_| panic!("could not build storage from URI {:?}", storage_uri));
         let current_path = CollectionPath::from(storage.root());
 
         let note_view: AsyncController<NoteView> = NoteView::builder()
@@ -169,6 +170,11 @@ impl AsyncComponent for App {
         group.add_action(about_action);
 
         let sender_clone = model.sidebar.sender().clone();
+        let focus_note_list_action: RelmAction<FocusNoteListAction> =
+            RelmAction::new_stateless(move |_| sender_clone.emit(SidebarMsg::FocusNoteList()));
+        group.add_action(focus_note_list_action);
+
+        let sender_clone = model.sidebar.sender().clone();
         let focus_search_entry_action: RelmAction<FocusSearchEntryAction> =
             RelmAction::new_stateless(move |_| sender_clone.emit(SidebarMsg::FocusSearchEntry()));
         group.add_action(focus_search_entry_action);
@@ -193,6 +199,7 @@ impl AsyncComponent for App {
         group.register_for_widget(&widgets.root);
 
         let app = main_application();
+        app.set_accelerators_for_action::<FocusNoteListAction>(&["<Control>L"]);
         app.set_accelerators_for_action::<FocusSearchEntryAction>(&["<Control>K"]);
         app.set_accelerators_for_action::<QuitAction>(&["<Control>Q"]);
         app.set_accelerators_for_action::<ToggleModeAction>(&["<Control>Return"]);

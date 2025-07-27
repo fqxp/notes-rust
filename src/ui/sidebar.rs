@@ -116,6 +116,7 @@ impl Sidebar {
 pub enum SidebarMsg {
     SelectedItem(u32),
     UpdateNoteList(Vec<Box<dyn AnyItem>>),
+    FocusNoteList(),
     FocusSearchEntry(),
     ChangeSearchTerm(String),
     ChangedSearchTerm(String),
@@ -297,6 +298,9 @@ impl AsyncComponent for Sidebar {
                 self.note_list_store.extend(items.iter().map(|item| {
                     glib::BoxedAnyObject::new(NoteListItem::from_any_item(item.clone()))
                 }));
+            }
+            FocusNoteList() => {
+                widgets.list_view.grab_focus();
             }
             FocusSearchEntry() => {
                 widgets.search_entry.grab_focus();
