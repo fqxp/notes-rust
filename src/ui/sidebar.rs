@@ -95,7 +95,7 @@ impl Sidebar {
 
     fn build_filter(&self, search_term: String) -> impl IsA<gtk::Filter> {
         gtk::CustomFilter::new(move |list_item| {
-            if search_term.len() == 0 {
+            if search_term.is_empty() {
                 return true;
             }
 
@@ -118,6 +118,7 @@ pub enum SidebarMsg {
     UpdateNoteList(Vec<Box<dyn AnyItem>>),
     FocusSearchEntry(),
     ChangeSearchTerm(String),
+    ChangedSearchTerm(String),
     ChangeSorting(SortOrder),
     SetCollectionPath(CollectionPath),
 }
@@ -150,11 +151,11 @@ impl AsyncComponent for Sidebar {
 
                 connect_changed[sender] => move |entry| {
                     let search_term = entry.buffer().text().to_string();
-                    let _ = sender.input(Self::Input::ChangeSearchTerm(search_term));
+                    sender.input(Self::Input::ChangedSearchTerm(search_term));
                 } @change_handler,
                 connect_icon_press[sender] => move |_, icon_position|{
                     if icon_position == gtk::EntryIconPosition::Secondary{
-                        let _ = sender.input(Self::Input::ChangeSearchTerm(String::from("")));
+                        sender.input(Self::Input::ChangeSearchTerm(String::from("")));
                     }
                 }
             },
@@ -167,7 +168,7 @@ impl AsyncComponent for Sidebar {
                 connect_selected_notify[sender] => move |dropdown: &gtk::DropDown| {
                     let obj = dropdown.selected_item().unwrap();
                     let sort_option: Ref<SortOption> = obj.downcast_ref::<glib::BoxedAnyObject>().unwrap().borrow();
-                    let _ = sender
+                    sender
                         .input_sender()
                         .emit(SidebarMsg::ChangeSorting(sort_option.order.clone()));
                 }
@@ -255,7 +256,7 @@ impl AsyncComponent for Sidebar {
         };
 
         let mut sort_options = gio::ListStore::new::<glib::BoxedAnyObject>();
-        sort_options.extend(SORT_OPTIONS.map(move |sc| glib::BoxedAnyObject::new(sc)));
+        sort_options.extend(SORT_OPTIONS.map(glib::BoxedAnyObject::new));
         let sort_expression = gtk::ClosureExpression::new::<String>(
             &[] as &[gtk::Expression],
             glib::closure!(|sc: glib::BoxedAnyObject| {
@@ -303,6 +304,10 @@ impl AsyncComponent for Sidebar {
                 widgets.search_entry.block_signal(&widgets.change_handler);
                 widgets.search_entry.buffer().set_text(search_term.clone());
                 widgets.search_entry.unblock_signal(&widgets.change_handler);
+                let filter = self.build_filter(search_term);
+                self.note_filter_list_model.set_filter(Some(&filter));
+            }
+            ChangedSearchTerm(search_term) => {
                 let filter = self.build_filter(search_term);
                 self.note_filter_list_model.set_filter(Some(&filter));
             }
